@@ -1,0 +1,340 @@
+---
+title: "Introduction to MBRarefy"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{vignettes}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r librarysetup, echo=TRUE}
+library(MBRarefy)
+
+set.seed(12134)
+# library(parallel)
+# library(foreach)
+# library(doParallel)
+# library(GAReg)
+# 
+# ## below code is only used in the process of writing
+# path_to_directory <- "../R"
+# r_files <- list.files(path_to_directory, pattern = "\\.R$", full.names = TRUE)
+# invisible(lapply(r_files, source))
+```
+
+
+# Overview
+
+The MBRarefy package provides a memory-efficient, multi-resolution rarefaction framework tailored for diversity analysis in high-throughput sequencing datasets, such as T-cell receptor (TCR) sequencing or microbiome profiling. It supports both alpha and beta diversity metrics, computed across multiple rarefaction depths and replicates, and facilitates meta-analysis across rarefied bins to assess overall diversity differences and associations.
+
+This package is especially useful when:
+
+- Your dataset contains large-range library sizes (library sizes) across sample profiles.
+- You want to control the confounding effects from library size (library size) in downstream alpha diversity association analysis.
+- You need multiple rarefying and want to aggregate the diversity measurements over replicates.
+- You're analyzing beta diversity including pairwise sequences comparison for large TCR sequencing datasets and wish to avoid excessive memory usage.
+
+## Installation
+Install from github https://github.com/mli171/MBRarefy via R package `devtools`.
+
+```{r eval=FALSE, echo=TRUE}
+devtools::install_github("mli171/MBRarefy")
+```
+
+## Key Features
+
+- Multi-bin Rarefaction: Stratify samples into bins based on library size and rarefy within each bin separately.
+- Optimal bin thresholds selection: Select the optimal bin-thresholding parameters that can minimize the weighted within-bin correlation between alpha diversity and samples' original library sizes (library sizes).
+- Alpha Diversity Support: Flexible specification of diversity metrics (e.g., Shannon, Simpson, Bray-Curtis, Jaccard).
+- Parallelization: Supports multi-core execution via R packages, foreach and doParallel.
+- Meta-Analysis: Combines statistical evidence across bins while preserving the rarefaction structure.
+- Memory Efficiency: Reads sample files individually and uses temporary disk-based storage to limit in-memory object size.
+
+## Main Functions
+
+- `multibin.rarefy.diversity()`: Wrapper to run alpha or beta rarefaction across replicates and bins.
+- `rarefy.alpha()`: Core functions for computing diversity metrics after rarefaction.
+- `get_alpha_metric_matrix()`: Aggregate results across replicates into summary matrices.
+- `multibin.meta.test.alpha()`: Perform meta-analysis of diversity associations using replicate-resolved statistics.
+
+# Workflow Examples
+
+The dataset used in this analysis originates from Emerson et al. (2017), a study designed to identify pathogen exposure signatures from shared TCR sequences. Specifically, the data includes immunosequencing profiles from 786 healthy bone marrow donors, each with known cytomegalovirus (CMV) serostatus. For this analysis, we focus on Cohort 1, which contains 666 samples. Among these, three samples have library sizes below $10^5$, and are filtered out accordingly in downstream analyses for quality control consideration. This dataset enables investigation of the relationship between TCR diversity and CMV exposure, providing a real-world case study for evaluating alpha diversity under the proposed multi-bin rarefying framework.
+
+## A Multibin Approach on Alpha Diversity Analysis
+
+Note that, due to the large size of TCR CMV data set, only the calculated alpha-diversity results are provided in this package. If users want to have the full data-processing steps replicated, it will be necessary to download the CMV TCR immunosequencing profiles directly from immuneACCESS sites at https://doi.org/10.21417/B7001Z.
+
+1. Prepare Input: Per-sample count tables;
+
+For each TCR repertoire profile, we extract and retain only the essential information: the nucleotide sequence (composed of A, T, G, C) and its corresponding read count. These cleaned profiles are saved as plain text (.txt) files, with one file per sample, and stored within a designated input directory.
+
+```{r eval=FALSE, echo=TRUE}
+InputDataDir = "data/"
+```
+
+Each processed file should contain at least two columns:
+
+- A sequence identifier column (e.g., "sequence"), containing nucleotide strings.
+- A count column (e.g., "count"), representing the observed frequency of each sequence.
+
+These .txt files are then used as input to the rarefying pipeline, allowing for scalable diversity estimation while minimizing memory usage by streaming from disk instead of loading all data into memory.
+
+2. Multibin rarefying across a user-defined library size grid (with optional multiple rarefying).
+
+To evaluate the confounding relationship between the estimated alpha diversities and the original library sizes across a range of rarefying depths, `MBRarefy` performs multi-bin rarefying over a user-specified grid of rarefying depths using `multibin.rarefy.diversity()`, repeating the process across multiple replicates (`nRep`) and optionally parallelizing the computation using the `doParallel` package. 
+
+For input, each sample is represented by a compact count profile saved as a plain-text file (.txt) in a user-specified directory (`InputDataDir` above). Each file contains the unique sequence identifiers (e.g., ASVs/OTUs for microbiome data or CDR3 nucleotide sequences for TCR data) and their corresponding counts. This lightweight format avoids dependence on platform-specific raw outputs while preserving the information required for rarefaction-based diversity estimation.
+
+```{r eval=FALSE, echo=TRUE}
+SeqVar   <- "seq"
+CountVar <- "count"
+
+depths   <- seq(from=1e5, to=1e7, by=1e5)
+
+alphamethods  <- c(
+  "unique_seq_alpha",      # Number of unique taxa (Richness)
+  "shannon_alpha",         # Shannon entropy
+  "gini_simpson_alpha",    # Gini-Simpson index
+  "chao1_alpha",           # Chao1 richness estimator
+  "chao1_bc_alpha",        # Bias-corrected Chao1
+  "pielou_alpha"           # Pielou's evenness
+)
+
+tim1 <- Sys.time()
+raw.multibin.alpha.res <- multibin.rarefy.diversity(
+  InputDataDir=InputDataDir,
+  CountVar=CountVar,
+  div.measure="alpha",
+  depths=depths,
+  methods=alphamethods,
+  nRep=10,
+  parallel=TRUE,
+  nCore=10)
+tim2 <- Sys.time()
+
+tim2 - tim1
+```
+
+The example nested list structure of the output `raw.multibin.alpha.res` can be checked by `str()` or be found through the R help documentation of `multibin.rarefy.diversity()`. Also note, this function can be used for classical (single-depth) rarefying approaches by specifying only one rarefying depth in the `depths` vector and setting `nRep = 1`. This allows you to obtain diversity metrics from a standard single rarefied dataset using the same interface, without engaging in multi-bin processing.
+
+3. Data-adaptive library-size binning via optimal thresholds selection.
+
+A key step in multibin rarefying is defining library size cutpoints that partition samples into bins for within-bin rarefying and inference. `MBRarefy` provides an automated, data-adaptive procedure to select these cutpoints from the observed library-size distribution, reducing ad hoc choices based on visual inspection or fixed rules.
+
+Given a user-specified rarefying depth grid (`depths` from above) and a target number of bins $K$ (or a complexity penalty), the function `optimalbin()` searches for a common set of ordered cutpoints that yields bins with adequate sample size and stable estimation. Cutpoints are chosen to minimize residual within-bin association between rarefaction-based alpha diversity and original library size evaluated at bin anchor depths, optionally adjusting for nuisance covariates (e.g., batch or sequencing run). This criterion targets bins in which alpha-diversity estimates are least confounded by library size, improving comparability across samples while retaining more information than single-depth rarefaction. Details can be found in Li (2026).
+
+The optimization is performed using a genetic algorithm (GA) constraint-aware search routine that enforces ordered cutpoints, minimum bin size, and optional minimum spacing on the depth grid. `MBRarefy` returns the selected cutpoints, bin assignments, and diagnostics (objective values and bin-level summaries) to support reproducible reporting and sensitivity analyses.
+
+Next, load the pre-processed alpha diversity data generated by the code chunk above and included with the package.
+
+```{r}
+data(CMV1)
+# load("../data/CMV1.rda")
+
+dataPheno              = CMV1$dataPheno
+raw.multibin.alpha.res = CMV1$alpha.res
+depths                 = CMV1$depths
+alphamethods           = CMV1$methods
+```
+
+Here, the total library size (`totalReads`) is calculated for each sample by summing the count column. The names are aligned with the sample names in the alpha diversity matrix. The corresponding phenotype metadata (`dataPheno`) is loaded and aligned with the same sample ordering. The total read counts are appended to the phenotype table (`dataPheno`) for further analysis.
+
+We then summarize replicates. After performing multiple rarefaction replicates, the function `get_alpha_metric_matrix()` is used to aggregate alpha diversity metrics for each sample and rarefaction depth. For each diversity measure, it returns a matrix where rows correspond to samples and columns correspond to rarefying depths. Each entry in the matrix represents the average value of the corresponding metric across all replicates. Here we pick "the number of unique sequences", also known as richness, as the illustrative example.
+
+```{r}
+alpha.mats <- get_alpha_metric_matrix(raw.multibin.alpha.res, metrics=alphamethods)
+USC <- alpha.mats$unique_seq_alpha
+dataPheno <- dataPheno[match(rownames(USC), rownames(dataPheno)), ]
+```
+
+In general, the overall rarefying technique will be applied to reduce the varying library size, so called confounding `artifacts`, due to the unavoidable sequencing experiment bias. We select the rarefying level to be 1e5 (minimum library size from all samples) and 1e6 (the elbow point from all samples' rarefaction curve), respectively and show the results below.
+
+```{r}
+overallRarefycol <- "RarefyTo1e+05"
+myfit <- lm(USC[,overallRarefycol] ~ dataPheno$totalReads)
+Overallpvalue <- summary(myfit)$coefficients[2,"Pr(>|t|)"]
+Overallpvalue
+
+overallRarefycol <- "RarefyTo1e+06"
+myfit <- lm(USC[,overallRarefycol] ~ dataPheno$totalReads)
+Overallpvalue <- summary(myfit)$coefficients[2,"Pr(>|t|)"]
+Overallpvalue
+```
+
+This suggests that given the specified rarefying level, the overall-rarefying approach cannot effectively remove the confounding relationship from the original library size. The inference results by testing the association between alpha diversity and phenotypes are questionable. 
+
+Now we decrible the multibin rarefying approach with optimal bin thresholds selection.
+
+Using a grid of $M=100$ rarefying levels spanning from 1e5 to 1e7 from `depths` above, we form a monotone grid set for the candidate optimal bin thresholding values. Before the multibin association analysis, we choose an optimal binning of $\boldsymbol{L}_{\text{grid}}$ that minimizes residual dependence between the original library size and alpha diversity within bins (Li et al., 2026). Given a rarefaction depth grid of length $M=100$ and the pre-computed alpha diversity matrix, we consider two real-world application scenarios: (i) the number of cutting thresholds is specified, or (ii) it must be estimated. For each scenario, we formulate a dedicated objective function and optimize it using the R package `GAReg` (Li et al., 2026). The proposed objective functions, `fixBinRegObj()` and `varyBinRegObj()`, are designed to meet our specific needs and are included in our `MBRarefy` package.
+
+- With user-specified number of bins;
+
+```{r fixnumbbin, fig.width=8, fig.height=4}
+Lorig = dataPheno$totalReads
+Lgrid = depths
+Y     = as.matrix(USC)
+
+fix_fit <- GAReg::gareg_knots(
+  y         = rep(0, length(Lgrid)),
+  x         = Lgrid,
+  ObjFunc   = fixBinRegObj,
+  minDist   = 1L,
+  gaMethod  = "cptga",
+  cptgactrl = cptgaControl(
+    popSize      = 400,
+    maxgen       = 100000,
+    pchangepoint = 0.3
+  ),
+  # extras consumed by the objective:
+  fixedknots   = 5L,            # <- set m if you’re running fixed-m search
+  Y            = Y,
+  Lorig        = Lorig,
+  Z            = NULL,          # optional covariates (n x q)
+  weight       = "count",       # n_b weighting is recommended
+  min_subjects = 20L,
+  use_logL     = TRUE
+)
+summary(fix_fit)
+
+best_idx   <- fix_fit@bestsol            # indices into Lgrid
+best_knots <- Lgrid[best_idx]
+best_knots
+
+edges_idx <- c(1L, best_idx, length(Lgrid))
+cuts      <- Lgrid[edges_idx]
+bins      <- cut(Lorig, breaks = c(-Inf, cuts[-1], Inf), right = TRUE)
+
+library(ggplot2)
+df_sc <- data.frame(N=Lorig,
+                    Y=Y[, which(Lgrid == min(Lgrid))],   # e.g., show first-bin anchor
+                    bin=bins)
+ggplot(df_sc, aes(N, Y, color=bin)) +
+  geom_point(alpha=.5) +
+  geom_vline(xintercept = best_knots, linetype=2) +
+  scale_x_log10() +
+  labs(title="Multibin (lower-bound anchors): selected thresholds",
+       x="Library size (N, log10 scale)", y="Alpha diversity at bin lower bound")
+```
+
+- With estimated number of bins;
+
+```{r varynumbbin, fig.width=8, fig.height=4}
+var_fit <- GAReg::gareg_knots(
+  y         = rep(0, length(Lgrid)),          # placeholder for API symmetry
+  x         = Lgrid,                           # rarefaction grid (length M)
+  ObjFunc   = varBinRegObj,
+  gaMethod  = "cptga",
+  minDist   = 1L,                              # set 0L if you want no spacing guard
+  cptgactrl = cptgaControl(
+    popSize      = 400,
+    maxgen       = 100000,
+    pchangepoint = 0.3
+  ),
+  # objective args:
+  Y            = Y,                            # n x M matrix
+  Lorig        = Lorig,                        # length n (raw library sizes)
+  Z            = NULL,                         # or n x q covariates
+  weight       = "count",                      # "count" | "equal" | "width"
+  min_subjects = 20L,                          # only hard guard
+  use_logL     = TRUE
+)
+summary(var_fit)
+
+best_idx   <- var_fit@bestsol
+best_knots <- Lgrid[best_idx]
+best_knots
+
+edges_idx <- c(1L, best_idx, length(Lgrid))
+cuts      <- Lgrid[edges_idx]
+bins      <- cut(Lorig, breaks = c(-Inf, cuts[-1], Inf), right = TRUE)
+
+library(ggplot2)
+df_sc <- data.frame(N=Lorig,
+                    Y=Y[, which(Lgrid == min(Lgrid))],   # e.g., show first-bin anchor
+                    bin=bins)
+ggplot(df_sc, aes(N, Y, color=bin)) +
+  geom_point(alpha=.5) +
+  geom_vline(xintercept = best_knots, linetype=2) +
+  scale_x_log10() +
+  labs(title="Multibin (lower-bound anchors): selected thresholds",
+       x="Library size (N, log10 scale)", y="Alpha diversity at bin lower bound")
+
+```
+
+Next, we use detected as the optimal bin thresholds and continue the illustration of multibin rarefying algorithm. Since the detected bin threshold parameters are only interior knots, we need to add-in the minimum of sample library size ($1e5$) as the lower boundary point.
+
+```{r}
+best_idx   <- fix_fit@bestsol
+best_knots <- Lgrid[best_idx]
+depths_op  <- c(1e5, best_knots)
+depths_op
+```
+
+
+4. Multibin rarefying and alpha-diversity extraction given selected optimal thresholds.
+
+After selecting the optimal cutpoints $\hat{\boldsymbol c}$, the package (i) assigns samples to bins based on their library sizes, (ii) determines a bin-specific rarefaction depth $m_k$ as the minimum library size within each bin, and (iii) rarefies all samples in bin $k$ to $m_k$ (subsampling without replacement). Alpha-diversity metrics are computed on the rarefied profiles and can be summarized within bins and across bins. When $R>1$, \texttt{MBRarefy} repeats the rarefaction step $R$ times per bin and reports the mean (and optional standard deviation) of the diversity estimates across replicates, improving stability when counts are sparse. The function returns the selected cutpoints, bin assignments, depths $\{m_k\}$, per-sample diversity estimates, and diagnostic summaries to support reproducible reporting and sensitivity analyses.
+
+Given the overall distribution of library sizes (library sizes) ${L_i}$, $i=1,\ldots,n$, and the selected $K-1$ optimal cutpoints, $\hat{c}_{k}$, $k=1,\ldots,K-1$, the TCR profiles are divided into $K$ bins. The choice of threshold values for binning should reflect the observed range and distribution of all $L_i$ across samples. Let:
+$$min(L_{i})=c_{0}\leq c_{1}<\ldots<c_{K-1}\leq c_{K}=max(L_{i})$$
+Each bin is defined by $[c_{k-1}, c_k)$, and within each bin, multiple rarefying replicates are performed to reduce the stochastic variation introduced by sub-sampling. The alpha diversity metrics are then computed as the average of multiple rarefying realizations per sample per bin. As mentioned in Li et al. (2024), the multi-bin rarefying method improves the robustness and interpretability of alpha diversity estimation in TCR sequencing data, especially in the presence of high variability in library size across samples.
+
+```{r}
+USC_mat <- USC[,paste0("RarefyTo", depths_op)]
+```
+
+5. Cross-bin association testing and Meta-analysis.
+
+In this step, we perform statistical testing to assess the association between alpha diversity (specifically, the number of unique TCR sequences) and external covariates such as library size (library size), gender, and CMV disease status. The multi-bin rarefying framework allows for more robust meta-analysis by accounting for variability across library size strata. Results are aggregated using three different weighting strategies across bins: equal weighting, sample-size weighting, and inverse-variance weighting. These approaches are detailed in Li et al. (2024). The results of all three weighting methods are stored in the returned R object. In this analysis, we use the inverse-variance weighting method as an example, which is recommended by Li et al. (2024). The results indicate no significant association between library size and alpha diversity, suggesting that the multi-bin rarefying strategy has effectively mitigated the confounding influence of library size. Consequently, downstream associations between alpha diversity and other phenotype variables can be interpreted with greater validity and robustness.
+
+Test association between alpha diversity and original library sizes. The obtained $>0.05$ p-value indicate the confounding relationship between the estimated alpha diversities and the original library sizes has been significantly eliminated.
+
+```{r}
+res.test.libsize <- multibin.meta.test.alpha(
+  y.alpha.mat=USC_mat, 
+  xs=dataPheno$totalReads,
+  totalReads=dataPheno$totalReads, 
+  BinCuts=c(depths_op, Inf))
+res.test.libsize$Multi.bin.IVW
+```
+
+Test association between alpha diversity and gender. The obtained $<0.05$ p-value still show the significant association between estimated alpha diversity and the gender variable.
+
+```{r}
+res.test.gender <- multibin.meta.test.alpha(
+  y.alpha.mat=USC_mat, 
+  xs=as.numeric(as.factor(dataPheno$`Biological Sex`))-1,
+  totalReads=dataPheno$totalReads, 
+  BinCuts=c(depths_op, Inf))
+res.test.gender$Multi.bin.IVW
+```
+
+Test association between alpha diversity and the observed CMV disease status. The obtained $<0.05$ p-value still show the significant association between estimated alpha diversity and the of-interested clinical variable, virus diseases status.
+
+```{r}
+res.test.CMV <- multibin.meta.test.alpha(
+  y.alpha.mat=USC_mat, 
+  xs=as.numeric(as.factor(dataPheno$`Virus Diseases`))-1,
+  totalReads=dataPheno$totalReads, 
+  BinCuts=c(depths_op, Inf))
+res.test.CMV$Multi.bin.IVW
+```
+
+# Reference
+
+Emerson, R. O., DeWitt, W. S., Vignali, M., Gravley, J., Hu, J., et al. (2017). *Immunosequencing identifies signatures of cytomegalovirus exposure history and HLA-mediated effects on the T cell repertoire*. Nature Genetics, 49(5), 659–665.
+
+Li, M., Hua, X., Li, S., Wu, M. C., \& Zhao, N. (2024). *A multi-bin rarefying method for evaluating alpha diversities in TCR sequencing data*. Bioinformatics, 40(7), btae431.
+
+Li, M., Lu, QQ., Lund, R., \& Shi, X. (2026). *Genetic Algorithms in Regression*.
+
+Li, M. (2026). *MBRarefy: data-adaptive library-size binning and multibin rarefying for alpha diversity association analysis*. 
+

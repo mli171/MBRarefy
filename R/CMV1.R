@@ -1,0 +1,60 @@
+#' Cytomegalovirus (CMV) TCR dataset (Cohort 1)
+#'
+#' @description
+#' Dataset derived from Emerson et al. (2017), a study that identified pathogen-exposure
+#' signatures from shared TCR sequences. The original study profiled 786 healthy bone marrow
+#' donors with known CMV serostatus. For this package, we focus on Cohort 2 and 3 (666 samples);
+#' three samples with sequencing depth below \eqn{10^5} are excluded, yielding 663 samples.
+#' This resource supports demonstrations of multi-bin rarefaction for evaluating alpha- and
+#' beta-diversity under varying sequencing depths.
+#'
+#' @details
+#' To illustrate the multi-bin workflow, sequencing profiles and metadata were preprocessed
+#' as follows. We pooled the 663 library sizes and constructed a common grid of 100 evenly
+#' spaced values spanning the observed range. For each sample and each grid value, we
+#' precomputed six alpha-diversity measures by rarefying to that depth whenever the grid
+#' value did not exceed the sample’s sequencing depth (\eqn{L_{(j)} \le L_i}). Multiple
+#' rarefaction replicates were performed with \code{nRep} per level, and computations were
+#' parallelized via \pkg{doParallel}. The six precomputed alpha indices are:
+#' \itemize{
+#'   \item \code{unique_seq_alpha} — number of unique sequences (richness),
+#'   \item \code{shannon_alpha} — Shannon entropy,
+#'   \item \code{gini_simpson_alpha} — Gini–Simpson index,
+#'   \item \code{chao1_alpha} — Chao1 richness estimator,
+#'   \item \code{chao1_bc_alpha} — bias-corrected Chao1,
+#'   \item \code{pielou_alpha} — Pielou’s evenness.
+#' }
+#' See the package vignettes for the full preprocessing pipeline.
+#'
+#' @format
+#' A named list \code{CMV1} with the following components:
+#' \describe{
+#'   \item{\code{alpha.res}}{A list containing alpha-diversity results with 10
+#'   replicates returned by \code{multibin.rarefy.diversity}.}
+#'   \item{\code{dataPheno}}{A data frame of sample-level metadata (e.g., IDs,
+#'   CMV serostatus, and sequencing depth). The sequencing depths for all
+#'   original samples are also collected in the dataframe.}
+#'   \item{\code{depths}}{A numeric vector of length 100 giving the common
+#'   rarefying grid (library sizes).}
+#'   \item{\code{methods}}{A character vector naming the six alpha-diversity
+#'   measures listed above.}
+#' }
+#'
+#' @source
+#' Emerson, R. O., DeWitt, W. S., Vignali, M., Gravley, J., Hu, J., \emph{et al.} (2017).
+#' Immunosequencing identifies signatures of cytomegalovirus exposure history and HLA-mediated
+#' effects on the T cell repertoire. \emph{Nature Genetics}, 49(5), 659–665.
+#' DOI: \doi{10.1038/ng.3822}. Original data available via immuneACCESS: \doi{10.21417/B7001Z}.
+#'
+#' @keywords datasets
+#' @docType data
+#'
+#' @usage data(CMV1)
+#'
+#' @examples
+#' data(CMV1)
+#' names(CMV1)
+#' length(CMV1$depths)
+#' head(CMV1$methods)
+#' str(CMV1$dataPheno)
+"CMV1"
