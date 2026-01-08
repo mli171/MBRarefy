@@ -21,7 +21,6 @@ set.seed(12134)
 # library(parallel)
 # library(foreach)
 # library(doParallel)
-# library(GAReg)
 # 
 # ## below code is only used in the process of writing
 # path_to_directory <- "../R"

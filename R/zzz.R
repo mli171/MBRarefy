@@ -1,0 +1,2 @@
+#' @importFrom stats pnorm
+NULL

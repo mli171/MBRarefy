@@ -61,6 +61,7 @@
 #' all.equal(R2_fun, as.numeric(R2_lm), tolerance = 1e-10)
 #'
 #' @keywords internal
+#' @noRd
 .partial_R2_via_t <- function(y, L, Z = NULL) {
 
   X <- if (is.null(Z)) cbind(1, L) else cbind(1, L, Z)
@@ -166,7 +167,6 @@
 #'
 #' @seealso \code{.partial_R2_via_t} for the exact partial-\eqn{R^2} calculation.
 #'
-#' @importFrom GAReg gareg_knots
 #' @examples
 #' set.seed(1)
 #' ## toy grid and data
@@ -196,6 +196,7 @@
 #'              minDist = 1L,
 #'              use_logL = TRUE)
 #'
+#' @export
 fixBinRegObj <- function(
     knot_bin,
     plen = 0,
@@ -379,8 +380,6 @@ fixBinRegObj <- function(
 #'
 #' @seealso \code{.partial_R2_via_t} for the exact partial-\eqn{R^2} calculation.
 #'
-#' @importFrom GAReg gareg_knots
-#'
 #' @examples
 #' set.seed(42)
 #' # grid and toy data
@@ -405,6 +404,7 @@ fixBinRegObj <- function(
 #'              minDist = 1L,
 #'              use_logL = TRUE)
 #'
+#' @export
 varBinRegObj <- function(
     knot_bin,
     plen = 0,
