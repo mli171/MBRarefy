@@ -14,7 +14,8 @@ Description: This package implements multibin rarefaction for alpha-diversity an
 Imports:
     foreach,
     doParallel,
-    parallel
+    parallel,
+    ggplot2
 Depends:
     GAReg
 License: file LICENSE
@@ -22,7 +23,6 @@ Encoding: UTF-8
 LazyData: true
 LazyDataCompression: xz
 Suggests: 
-    ggplot2,
     knitr,
     rmarkdown
 VignetteBuilder: knitr

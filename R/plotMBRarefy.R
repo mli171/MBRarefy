@@ -153,7 +153,6 @@ plotMBRarefy <- function(
     show_knot_lines = TRUE,
     show_fixed_depth_line = TRUE
 ) {
-  library(ggplot2)
 
   y_mode <- match.arg(y_mode)
 
@@ -249,41 +248,44 @@ plotMBRarefy <- function(
     by = 0.2
   )
 
-  p <- ggplot(df_valid, aes(x = N, y = Y, shape = Bin, color = Bin)) +
-    geom_point(alpha = 0.6, stroke = 1) +
-    scale_shape_manual(values = shape_vals) +
-    scale_x_log10(
+  p <- ggplot2::ggplot(
+    df_valid,
+    ggplot2::aes(x = N, y = Y, shape = Bin, color = Bin)
+  ) +
+    ggplot2::geom_point(alpha = 0.6, stroke = 1) +
+    ggplot2::scale_shape_manual(values = shape_vals) +
+    ggplot2::scale_x_log10(
       breaks = 10^x_log_breaks,
       labels = x_log_breaks,
-      expand = expansion(mult = c(0.01, 0.02))
+      expand = ggplot2::expansion(mult = c(0.01, 0.02))
     ) +
-    labs(
+    ggplot2::labs(
       title = title_prefix,
       x = expression(log[10] * "(Library size)"),
       y = y_label
     ) +
-    theme_bw(base_size = base_size) +
-    theme(
-      plot.title = element_text(face = "bold", hjust = 0.5),
-      panel.grid.major = element_blank(),
-      panel.grid.minor = element_blank(),
-      panel.border = element_rect(color = "black", linewidth = 1.2, fill = NA),
-      axis.text = element_text(color = "black"),
-      legend.title = element_blank(),
+    ggplot2::theme_bw(base_size = base_size) +
+    ggplot2::theme(
+      plot.title = ggplot2::element_text(face = "bold", hjust = 0.5),
+      panel.grid.major = ggplot2::element_blank(),
+      panel.grid.minor = ggplot2::element_blank(),
+      panel.border = ggplot2::element_rect(color = "black", linewidth = 1.2, fill = NA),
+      axis.text = ggplot2::element_text(color = "black"),
+      legend.title = ggplot2::element_blank(),
       legend.position = "bottom",
       legend.box = "horizontal"
     ) +
-    guides(
-      color = guide_legend(nrow = numLegendRow),
-      shape = guide_legend(nrow = numLegendRow)
+    ggplot2::guides(
+      color = ggplot2::guide_legend(nrow = numLegendRow),
+      shape = ggplot2::guide_legend(nrow = numLegendRow)
     )
 
   if (show_knot_lines && !is.null(best_knots) && y_mode == "bin_lower_bound") {
-    p <- p + geom_vline(xintercept = best_knots, color = "blue", linetype = 2)
+    p <- p + ggplot2::geom_vline(xintercept = best_knots, color = "blue", linetype = 2)
   }
 
   if (show_fixed_depth_line && y_mode == "fixed_depth") {
-    p <- p + geom_vline(
+    p <- p + ggplot2::geom_vline(
       xintercept = fixed_depth,
       color = "red",
       linetype = 2
@@ -292,14 +294,14 @@ plotMBRarefy <- function(
 
   if (show_missing_as_rug && nrow(df_missing) > 0) {
     p <- p +
-      geom_rug(
+      ggplot2::geom_rug(
         data = df_missing,
-        aes(x = N),
+        ggplot2::aes(x = N),
         inherit.aes = FALSE,
         sides = "b",
         alpha = 0.7
       ) +
-      labs(
+      ggplot2::labs(
         caption = paste0(
           nrow(df_missing),
           " samples have unavailable alpha diversity at the plotted depth and are shown as rug marks."
