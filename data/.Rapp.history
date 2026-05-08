@@ -1,0 +1,5 @@
+load("/Users/mli171/Desktop/TCR/MBRarefy/data/CMV1.rda")
+str(CMV1)
+LS()
+ls()
+names(CMV1)
