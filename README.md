@@ -1,5 +1,5 @@
 # MBRarefy
-A multi-bin rarefying method for testing the association between alpha and beta diversities with covariates. This package provides the “multi-bin” rarefying approach that partitions samples into multiple bins according to their library sizes, conducts rarefying within each bin for alpha and beta diversity calculations, and performs meta-analysis across the association study results from each bin.
+A multi-bin rarefying method for testing the association between alpha diversities with covariates. This package provides the “multi-bin” rarefying approach that partitions samples into multiple bins according to their library sizes, conducts rarefying within each bin for alpha and beta diversity calculations, and performs meta-analysis across the association study results from each bin.
 
 ## Installation
 You can install the latest version of MBRarefy from Github:

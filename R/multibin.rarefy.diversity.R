@@ -96,6 +96,7 @@ multibin.rarefy.diversity = function(InputDataDir,
     div.fun = rarefy.alpha
   }else if (div.measure == "beta"){
     # div.fun = rarefy.beta
+    stop("Beta diversity is not implemented in this version of MBRarefy.")
   }
 
   if(parallel){
@@ -112,9 +113,9 @@ multibin.rarefy.diversity = function(InputDataDir,
       )
     names(divLists) = paste0("Rep", 1:nRep)
   }else{
+    divLists = vector("list", nRep)
+    names(divLists) = paste0("Rep", 1:nRep)
     for(iii in 1:nRep){
-      divLists = vector("list", nRep)
-      names(divLists) = paste0("Rep", 1:nRep)
       divLists[[iii]] = do.call(div.fun,
                                 c(list(InputDataDir, SeqVar, CountVar, depths, methods)))
     }
