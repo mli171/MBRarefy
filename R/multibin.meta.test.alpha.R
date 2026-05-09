@@ -68,7 +68,11 @@ multibin.meta.test.alpha = function(y.alpha.mat,
 
   binFactor = cut(totalReads, BinCuts)
 
-  if(!is.function(test.func)) test.bin = get(test.func)
+  if (is.function(test.func)) {
+    test.bin <- test.func
+  } else {
+    test.bin <- get(test.func, mode = "function")
+  }
 
   # Single-bin
   Single.bin.res = vector("list", nBins)

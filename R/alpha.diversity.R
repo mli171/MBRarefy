@@ -30,9 +30,11 @@ unique_seq_alpha = function(x) {
 #' @examples
 #' shannon_alpha(c(10, 20, 30))
 #' @export
-shannon_alpha <- function(x){
-  p = x/sum(x)
-  return(-sum(p * log(p)))
+shannon_alpha <- function(x) {
+  x <- x[x > 0]
+  if (!length(x)) return(NA_real_)
+  p <- x / sum(x)
+  -sum(p * log(p))
 }
 
 
@@ -46,11 +48,12 @@ shannon_alpha <- function(x){
 #' @examples
 #' gini_simpson_alpha(c(5, 10, 15))
 #' @export
-gini_simpson_alpha <- function(x){
-  p = x/sum(x)
-  return(1 - sum(p^2))
+gini_simpson_alpha <- function(x) {
+  x <- x[x > 0]
+  if (!length(x)) return(NA_real_)
+  p <- x / sum(x)
+  1 - sum(p^2)
 }
-
 
 
 #' Calculate Chao1 Richness Estimator
@@ -62,10 +65,12 @@ gini_simpson_alpha <- function(x){
 #' @examples
 #' chao1_alpha(c(1, 1, 2, 3, 4))
 #' @export
-chao1_alpha <- function(x){
-  tmpf1 = sum(1*(x == 1))
-  tmpf2 = sum(1*(x == 2))
-  return(length(x) + (tmpf1^2)/(2*tmpf2))
+chao1_alpha <- function(x) {
+  x <- x[x > 0]
+  f1 <- sum(x == 1)
+  f2 <- sum(x == 2)
+  Sobs <- length(x)
+  if (f2 > 0) Sobs + f1^2 / (2 * f2) else Sobs + f1 * (f1 - 1) / 2
 }
 
 
@@ -94,7 +99,8 @@ chao1_bc_alpha <- function(x){
 #' @examples
 #' pielou_alpha(c(10, 10, 10))
 #' @export
-pielou_alpha <- function(x){
-  p = x/sum(x)
-  return(-sum(p*log(p))/log(length(x)))
+pielou_alpha <- function(x) {
+  x <- x[x > 0]
+  if (length(x) <= 1) return(NA_real_)
+  shannon_alpha(x) / log(length(x))
 }

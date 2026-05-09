@@ -32,14 +32,21 @@ across multiple depths and metrics. Each sample is independently rarefied at eac
 calculated using user-specified metrics.
 }
 \details{
-The function reads sample files from the specified directory, extracts the count column, and performs rarefaction
-at each specified depth (if the sample's total count is at least that depth). It uses multinomial subsampling
-to select a fixed number of observations and computes diversity metrics from the resulting subsample.
+The function reads sample files from the specified directory, extracts the
+count column, and performs rarefying at each specified depth (if the
+sample's total count is at least that depth). This function processes one
+sample file at a time, avoiding the need to load the full cohort-wide count
+matrix into memory. The current implementation performs exact rarefying by
+expanding feature counts to read-level indices and sampling without
+replacement. Therefore, memory usage during rarefying scales with the library
+size of the individual sample being processed.
 
-If the rarefaction depth exceeds the library size of a sample, the returned metrics for that depth will be set to
+If the rarefaction depth exceeds the library size of a sample, the returned
+metrics for that depth will be set to
 \code{NULL} (but still structured in the output).
 
-This function is commonly used with \code{\link{multibin.rarefy.diversity}} to perform replicate-based evaluation.
+This function is commonly used with \code{\link{multibin.rarefy.diversity}}
+to perform replicate-based evaluation.
 }
 \section{Output Structure}{
 
@@ -70,5 +77,6 @@ result <- rarefy.alpha(InputDataDir, CountVar, depths, methods)
 
 }
 \seealso{
-\code{\link{alpha.diversity.calc}}, \code{\link{multibin.rarefy.diversity}}
+\code{\link{alpha.diversity.calc}},
+\code{\link{multibin.rarefy.diversity}}
 }

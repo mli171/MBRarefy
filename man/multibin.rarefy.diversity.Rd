@@ -49,8 +49,16 @@ replicate to reduce memory footprint. Both sequential and parallel processing ar
 }
 \details{
 This function wraps around either \code{\link{rarefy.alpha}},
-based on the \code{div.measure} argument. When \code{parallel = TRUE}, it uses \pkg{foreach} and \pkg{doParallel}
-to distribute replicates across cores. If any required arguments are missing or misconfigured, the function halts with an error.
+based on the \code{div.measure} argument. When \code{parallel = TRUE},
+it uses \pkg{foreach} and \pkg{doParallel}
+to distribute replicates across cores. If any required arguments are missing
+or misconfigured, the function halts with an error.
+
+It uses file-based sample-wise processing to reduce cohort-level memory
+requirements. For alpha diversity, the current rarefaction backend performs
+exact subsampling without replacement by expanding counts within each sample,
+so memory use for a single rarefaction task depends on that sample's
+library size.
 }
 \section{Output Structure}{
 
