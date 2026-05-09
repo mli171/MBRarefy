@@ -6,9 +6,8 @@
 #'
 #' @param InputDataDir Character string specifying the directory path containing input files.
 #'   Each file should be a tab-delimited or space-separated count table for a single sample (.txt) file.
-#'   The count of each TCR sequences is required for the alpha diversity association analysis.
-#' @param SeqVar NULL here. Name of the column containing sequence or feature identifiers (used only for beta diversity
-#'   for pairwise comparison).
+#'   The count of each feature, sequence, ASV, OTU, taxon, or clonotype is required.
+#' @param SeqVar NULL here. Name of the column containing sequence or feature identifiers.
 #' @param CountVar Character string specifying the column name in the input files that contains count data
 #'   (e.g., read or taxon counts).
 #' @param depths Numeric vector specifying the rarefaction depths to apply (e.g., \code{c(1000, 5000, 10000)}).
