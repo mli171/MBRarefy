@@ -14,38 +14,70 @@ knitr::opts_chunk$set(
 )
 ```
 
-```{r librarysetup, echo=TRUE}
-# library(MBRarefy)
-
-set.seed(12134)
-library(parallel)
-library(foreach)
-library(doParallel)
-library(GAReg)
-
-## below code is only used in the process of writing
-path_to_directory <- "~/Desktop/TCR/MBRarefy/R"
-r_files <- list.files(path_to_directory, pattern = "\\.R$", full.names = TRUE)
-invisible(lapply(r_files, source))
-```
-
-
 # Overview
 
-The MBRarefy package provides a memory-efficient, multi-resolution rarefaction framework tailored for diversity analysis in high-throughput sequencing datasets, such as T-cell receptor (TCR) sequencing or microbiome profiling. It supports both alpha and beta diversity metrics, computed across multiple rarefaction depths and replicates, and facilitates meta-analysis across rarefied bins to assess overall diversity differences and associations.
+The `MBRarefy` package provides a multi-bin rarefying workflow for alpha diversity association analysis under heterogeneous library sizes in high-throughput count-profile datasets, including immune-repertoire and microbiome sequencing data.
 
 This package is especially useful when:
 
-- Your dataset contains large-range library sizes (library sizes) across sample profiles.
-- You want to control the confounding effects from library size (library size) in downstream alpha diversity association analysis.
-- You need multiple rarefying and want to aggregate the diversity measurements over replicates.
-- You're analyzing beta diversity including pairwise sequences comparison for large TCR sequencing datasets and wish to avoid excessive memory usage.
+- your dataset contains highly heterogeneous library sizes across samples;
+- you want to reduce residual library-size dependence (confounding effects from library size) in downstream alpha diversity association analysis;
+- you want to use repeated rarefying to stabilize diversity estimates across subsampling replicates;
+- you want to select library-size bin cutpoints in a data-adaptive and reproducible way rather than using ad-hoc thresholds;
+- you want to combine bin-specific association results through cross-bin meta-analysis.
+
+
+## Required packages
+
+`MBrarefy` relies on the following Comprehensive R Archive Network (CRAN) packages:
+
+- doParallel
+- parallel
+- foreach
+- doParallel
+- utils
+- ggplot2
+- GAReg
+
+These packages are all available on CRAN.
 
 ## Installation
-Install from github https://github.com/mli171/MBRarefy via R package `devtools`.
+
+Install from the local file (the .tar.gz file), which you can download from https://github.com/mli171/MBRarefy. 
 
 ```{r eval=FALSE, echo=TRUE}
-devtools::install_github("mli171/MBRarefy")
+devtools::install_local("MBRarefy_0.1.0.tar.gz", dependencies = TRUE)
+```
+
+Install from CRAN via
+
+```{r eval=FALSE, echo=TRUE}
+install.packages("MBRarefy")
+```
+
+A github developer version is also available at https://github.com/mli171/MBRarefy via R package `pak` via
+
+```{r eval=FALSE, echo=TRUE}
+pak::pak("mli171/MBRarefy")
+```
+
+
+## Open the Vignette in R 
+
+```{r eval=FALSE, echo=TRUE}
+browseVignettes("MBRarefy")
+```
+
+or
+
+```{r eval=FALSE, echo=TRUE}
+vignette("MBRarefy_vignette", package = "MBRarefy")
+```
+
+Then call the library via 
+
+```{r librarysetup, echo=TRUE}
+library(MBRarefy)
 ```
 
 ## Key Features
@@ -59,7 +91,7 @@ devtools::install_github("mli171/MBRarefy")
 
 ## Main Functions
 
-- `multibin.rarefy.diversity()`: Wrapper to run alpha or beta rarefaction across replicates and bins.
+- `multibin.rarefy.diversity()`: Wrapper to run alpha rarefaction across replicates and bins.
 - `rarefy.alpha()`: Core functions for computing diversity metrics after rarefaction.
 - `get_alpha_metric_matrix()`: Aggregate results across replicates into summary matrices.
 - `multibin.meta.test.alpha()`: Perform meta-analysis of diversity associations using replicate-resolved statistics.
