@@ -42,7 +42,7 @@ A typical `MBRarefy` analysis consists of the following steps:
 
 ## Input format
 
-`MBRarefy` uses a file-based input format. Each sample is represented by one plain-text count file with at least a count column and, when required, a feature identifier column.
+`MBRarefy` uses a file-based input format. Each sample is represented by one plain-text count file with at least a count column and, when required, a feature identifier column. Please check package vignettes how to create input files from commonly seen TCR profiles format and Microbiome OTU count table.
 
 Example:
 
