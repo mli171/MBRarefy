@@ -16,7 +16,7 @@ knitr::opts_chunk$set(
 
 
 ```{r, include=FALSE}
-seet.seed(1234)
+set.seed(1234)
 ```
 
 # Overview
