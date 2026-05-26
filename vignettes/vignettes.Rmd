@@ -14,6 +14,11 @@ knitr::opts_chunk$set(
 )
 ```
 
+
+```{r, include=FALSE}
+seet.seed(1234)
+```
+
 # Overview
 
 The `MBRarefy` package provides a multi-bin rarefying workflow for alpha diversity association analysis under heterogeneous library sizes in high-throughput count-profile datasets, including immune-repertoire and microbiome sequencing data.
@@ -82,7 +87,6 @@ library(GAReg)
 library(changepointGA)
 ```
 
-
 ## Key Features
 
 - **Multi-bin rarefying:** Stratifies samples by library size and rarefies samples within each bin to a bin-specific depth.
@@ -115,10 +119,21 @@ library(changepointGA)
 Cutpoint optimization is carried out using `GAReg::gareg_knots()` with `fixBinRegObj()` or `varBinRegObj()` supplied as the objective function.
 
 
-
-# Multi-bin Approach Workflow for TCR and Microbiome Alpha Diversity Association Analysis
+# Multi-bin Workflow for TCR and Microbiome Alpha Diversity Association Analysis
 
 The package vignettes illustrate the full \texttt{MBRarefy} workflow using two real datasets from distinct application domains. First, we use the TCR immunosequencing dataset from Emerson et al. (2017), which profiled healthy donors with known Cytomegalovirus (CMV) serostatus, to demonstrate alpha-diversity association testing in immune repertoire data. Second, we include a microbiome example using the longitudinal wild baboon gut 16S rRNA dataset available via \texttt{microbiomeDataSets::baboongut()}, which contains 16,234 microbiome profiles from 585 baboons collected over 14 years, together with rich sample metadata. These two examples highlight how the same grid-based profiling, GA-based cutpoint selection, and downstream multibin inference can be applied across immune repertoire and microbiome/count-based profiling studies under heterogeneous library sizes.
+
+The main steps are:
+
+1. **Prepare input files and metadata.** Each sample is represented by a feature-count file, and sample metadata are aligned by sample identifiers.
+2. **Compute rarefaction profiles.** `multibin.rarefy.diversity()` rarefies each eligible sample over the specified depth grid and computes alpha diversity metrics.
+3. **Summarize replicate-resolved results.** `get_alpha_metric_matrix()` averages over repeated rarefaction replicates and returns a sample-by-depth alpha diversity matrix.
+4. **Select library-size cutpoints.** `GAReg::gareg_knots()` is used with `fixBinRegObj()` for fixed-\(K\) selection or `varBinRegObj()` for varying-\(K\) selection.
+5. **Extract bin-anchored alpha diversity.** Samples are assigned to library-size bins, and diversity is evaluated at each bin’s lower rarefying depth.
+6. **Run association tests and meta-analysis.** `multibin.meta.test.alpha()` performs bin-wise association testing and combines evidence across bins using equal, sample-size, or inverse-variance weighting.
+7. **Check residual library-size dependence.** The bin-anchored diversity values are tested against original library size as a diagnostic before interpreting biological or ecological associations.
+
+The TCR example uses observed clonotype richness as the alpha diversity metric and evaluates associations with age, biological sex, and CMV serostatus. The microbiome example uses observed ASV richness and evaluates associations with age, sex, and group size.
 
 ## TCR Alpha Diversity Association Analysis
 
