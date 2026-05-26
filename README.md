@@ -25,7 +25,7 @@ A typical `MBRarefy` analysis consists of the following steps:
 1. Prepare per-sample feature-count files and aligned metadata.
 2. Compute repeated rarefaction profiles over a user-defined depth grid using `multibin.rarefy.diversity()`.
 3. Aggregate replicate-resolved alpha-diversity results into sample-by-depth matrices using `get_alpha_metric_matrix()`.
-4. Select library-size cutpoints using fixed-\(K\) or varying-\(K\) GA-based optimization.
+4. Select library-size cutpoints using fixed-K or varying-K GA-based optimization.
 5. Extract bin-anchored alpha diversity values.
 6. Perform bin-wise association testing and cross-bin meta-analysis using `multibin.meta.test.alpha()`.
 7. Run a residual library-size diagnostic before interpreting biological or ecological associations.
@@ -36,8 +36,8 @@ A typical `MBRarefy` analysis consists of the following steps:
 - `multibin.rarefy.diversity()`: Runs repeated rarefying over a user-specified depth grid and computes alpha diversity metrics for each eligible sample.
 - `rarefy.alpha()`: Computes alpha diversity metrics after rarefying for a single sample or count profile.
 - `get_alpha_metric_matrix()`: Aggregates replicate-resolved rarefying results into sample-by-depth alpha diversity matrices.
-- `fixBinRegObj()`: Objective function for fixed-\(K\) GA-based library-size cutpoint selection.
-- `varBinRegObj()`: Objective function for varying-\(K\) GA-based library-size cutpoint selection.
+- `fixBinRegObj()`: Objective function for fixed-K GA-based library-size cutpoint selection.
+- `varBinRegObj()`: Objective function for varying-K GA-based library-size cutpoint selection.
 - `multibin.meta.test.alpha()`: Performs bin-wise alpha diversity association tests and combines bin-specific results by cross-bin meta-analysis.
 
 ## Input format
