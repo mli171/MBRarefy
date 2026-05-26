@@ -99,13 +99,6 @@ library(changepointGA)
 - **File-based sample-wise processing:** Reads sample count files individually to reduce cohort-level memory requirements.
 - **Residual library-size diagnostics:** Tests whether bin-anchored alpha diversity remains detectably associated with original library size after multi-bin rarefying.
 
-## Main Functions
-
-- `multibin.rarefy.diversity()`: Wrapper to run alpha rarefying across replicates and bins.
-- `rarefy.alpha()`: Core functions for computing diversity metrics after rarefying.
-- `get_alpha_metric_matrix()`: Aggregate results across replicates into summary matrices.
-- `multibin.meta.test.alpha()`: Perform meta-analysis of diversity associations using replicate-resolved statistics.
-
 
 ## Main Functions
 
