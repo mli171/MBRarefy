@@ -9,10 +9,9 @@ rarefy.alpha(InputDataDir, SeqVar = NULL, CountVar, depths, methods)
 \arguments{
 \item{InputDataDir}{Character string specifying the directory path containing input files.
 Each file should be a tab-delimited or space-separated count table for a single sample (.txt) file.
-The count of each TCR sequences is required for the alpha diversity association analysis.}
+The count of each feature, sequence, ASV, OTU, taxon, or clonotype is required.}
 
-\item{SeqVar}{NULL here. Name of the column containing sequence or feature identifiers (used only for beta diversity
-for pairwise comparison).}
+\item{SeqVar}{NULL here. Name of the column containing sequence or feature identifiers.}
 
 \item{CountVar}{Character string specifying the column name in the input files that contains count data
 (e.g., read or taxon counts).}

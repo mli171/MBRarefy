@@ -236,7 +236,7 @@ Overallpvalue <- summary(myfit)$coefficients[2,"Pr(>|t|)"]
 Overallpvalue
 ```
 
-These diagnostics indicate that overall rarefying can leave detectable residual association between observed richness and original library size. The inference results by testing the association between alpha diversity and phenotypes are questionable. 
+These diagnostics indicate that overall rarefying can leave detectable residual association between observed richness and original library size. The relationship between TCR phenotype covariates and library size was examined in Li et al. (2024). The inference results by testing the association between alpha diversity and phenotypes are questionable. 
 
 Now we describe the multi-bin rarefying approach with optimal bin thresholds selection.
 
@@ -568,13 +568,61 @@ overall_diag
 ```
 These diagnostics show that single-depth overall rarefying produced depth-dependent results. The residual association between rarefied richness and original library size was significant at 50k, 69k, and 82k reads, but became non-significant at 91k reads, where only 236 samples were retained. Covariate associations also depended on the chosen rarefying depth: sex was significant at 50k and 69k reads but not at higher depths, whereas group size became significant only at 91k reads. This illustrates that single-depth rarefaction can change both the retained sample set and the resulting covariate associations.
 
+
+```{r}
+candidate_vars <- c("age", "sex", "group_size")
+
+covariate_libsize_diag <- do.call(rbind, lapply(candidate_vars, function(var) {
+  x <- dataPheno[[var]]
+
+  if (is.factor(x) || is.character(x)) {
+    x <- as.numeric(as.factor(x)) - 1
+  } else {
+    x <- as.numeric(x)
+  }
+
+  ok <- is.finite(x) & is.finite(Lorig)
+
+  if (sum(ok) < 10 || length(unique(x[ok])) < 2) {
+    return(data.frame(
+      variable = var,
+      n = sum(ok),
+      cor_with_library_size = NA_real_,
+      slope = NA_real_,
+      p_value = NA_real_,
+      r_squared = NA_real_,
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  fit <- lm(Lorig[ok] ~ x[ok])
+
+  data.frame(
+    variable = var,
+    n = sum(ok),
+    cor_with_library_size = cor(x[ok], Lorig[ok]),
+    slope = coef(fit)[2],
+    p_value = summary(fit)$coefficients[2, "Pr(>|t|)"],
+    r_squared = summary(fit)$r.squared,
+    stringsAsFactors = FALSE
+  )
+}))
+
+rownames(covariate_libsize_diag) <- NULL
+covariate_libsize_diag[order(covariate_libsize_diag$p_value), ]
+```
+
+This diagnostic checks whether selected covariates are associated with original library size. In this example, age and group size are associated with library size, whereas sex is not. Therefore, age and group-size associations should be interpreted with awareness of potential depth-related confounding under single-depth rarefaction. This motivates the residual library-size diagnostic used after multi-bin rarefying.
+
+
+
 5. Data-adaptive library-size cutpoint selection
 
 We next select data-adaptive library-size cutpoints using the precomputed sample-by-depth richness matrix. The fixed-$K$ mode uses a user-specified number of interior cutpoints, whereas the varying-$K$ mode estimates the cutpoint complexity from the data.
 
 Because GA-based cutpoint selection is stochastic, we set a fixed random seed before each call to `GAReg::gareg_knots()` for reproducibility. In applied analyses, users can repeat the search under several seeds and check whether the residual library-size diagnostics and downstream association results are stable.
 
-- Model 1: With user-specified number of bins (``fixed-$K$'');
+- With user-specified number of bins (``fixed-$K$'');
 
 ```{r}
 fix_fit <- GAReg::gareg_knots(
@@ -625,7 +673,7 @@ res_fix <- plotMBRarefy(
 res_fix$plot
 ```
 
-- Model 2: With estimated number of bins (``varying-$K$'');
+- With estimated number of bins (``varying-$K$'');
 
 ```{r}
 var_fit <- GAReg::gareg_knots(

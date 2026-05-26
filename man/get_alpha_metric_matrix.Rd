@@ -33,7 +33,7 @@ set.seed(123)
 # Fake rarefaction results for 2 replicates, 3 samples, 3 depths, 3 metrics
 reps <- paste0("Rep", 1:2)
 samples <- c("SampleA", "SampleB", "SampleC")
-depths <- c("Rarefy1000", "Rarefy5000", "Rarefy10000")
+depths <- c("RarefyTo1000", "RarefyTo5000", "RarefyTo10000")
 methods <- c("unique_seq_alpha", "shannon_alpha", "gini_simpson_alpha")
 
 # Construct mock nested list for alpha diversity
