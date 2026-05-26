@@ -231,7 +231,7 @@ Overallpvalue <- summary(myfit)$coefficients[2,"Pr(>|t|)"]
 Overallpvalue
 ```
 
-This suggests that given the specified rarefying level, the overall-rarefying approach cannot effectively remove the confounding relationship from the original library size. The inference results by testing the association between alpha diversity and phenotypes are questionable. 
+These diagnostics indicate that overall rarefying can leave detectable residual association between observed richness and original library size. The inference results by testing the association between alpha diversity and phenotypes are questionable. 
 
 Now we decrible the multibin rarefying approach with optimal bin thresholds selection.
 
@@ -351,7 +351,8 @@ USC_mat <- USC[,paste0("RarefyTo", depths_op)]
 
 In this step, we perform statistical testing to assess the association between alpha diversity (specifically, the number of unique TCR sequences) and external covariates such as library size, gender, and CMV disease status. The multi-bin rarefying framework allows for more robust meta-analysis by accounting for variability across library size strata. Results are aggregated using three different weighting strategies across bins: equal weighting, sample-size weighting, and inverse-variance weighting. These approaches are detailed in Li et al. (2024). The results of all three weighting methods are stored in the returned R object. In this analysis, we use the inverse-variance weighting method as an example, which is recommended by Li et al. (2024). The results indicate no significant association between library size and alpha diversity, suggesting that the multi-bin rarefying strategy has effectively mitigated the confounding influence of library size. Consequently, downstream associations between alpha diversity and other phenotype variables can be interpreted with greater validity and robustness.
 
-Test association between alpha diversity and original library sizes. The obtained $>0.05$ p-value indicate the confounding relationship between the estimated alpha diversities and the original library sizes has been significantly eliminated.
+Test association between alpha diversity and original library sizes. A non-significant residual library-size diagnostic with p-value$>0.05$ suggests reduced detectable residual library-size dependence under the fitted diagnostic model.
+
 
 ```{r}
 res.test.libsize <- multibin.meta.test.alpha(
