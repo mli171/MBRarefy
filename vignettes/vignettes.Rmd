@@ -84,7 +84,7 @@ Then call the library via
 ```{r librarysetup, echo=TRUE}
 library(MBRarefy)
 library(GAReg)
-library(changepointGA)
+# library(changepointGA)
 ```
 
 ## Key Features
