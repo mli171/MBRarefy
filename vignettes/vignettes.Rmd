@@ -80,14 +80,18 @@ Then call the library via
 library(MBRarefy)
 ```
 
+
 ## Key Features
 
-- Multi-bin Rarefaction: Stratify samples into bins based on library size and rarefy within each bin separately.
-- Optimal bin thresholds selection: Select the optimal bin-thresholding parameters that can minimize the weighted within-bin correlation between alpha diversity and samples' original library sizes (library sizes).
-- Alpha Diversity Support: Flexible specification of diversity metrics (e.g., Shannon, Simpson, Bray-Curtis, Jaccard).
-- Parallelization: Supports multi-core execution via R packages, foreach and doParallel.
-- Meta-Analysis: Combines statistical evidence across bins while preserving the rarefaction structure.
-- Memory Efficiency: Reads sample files individually and uses temporary disk-based storage to limit in-memory object size.
+- **Multi-bin rarefaction:** Stratifies samples by library size and rarefies samples within each bin to a bin-specific depth.
+- **Data-adaptive cutpoint selection:** Selects library-size bin cutpoints by minimizing residual within-bin association between alpha diversity and original library size.
+- **Fixed-\(K\) and varying-\(K\) modes:** Supports user-specified bin complexity through fixed-\(K\) selection and data-adaptive bin complexity through varying-\(K\) selection.
+- **Alpha diversity metrics:** Supports observed richness, Shannon entropy, Simpson/Gini-Simpson index, Chao1, bias-corrected Chao1, and Pielou evenness.
+- **Repeated rarefaction:** Supports repeated subsampling to stabilize alpha-diversity estimates across rarefaction replicates.
+- **Parallel execution:** Supports multi-core computation through `foreach` and `doParallel`.
+- **Cross-bin meta-analysis:** Combines bin-specific association results using equal, sample-size, or inverse-variance weighting.
+- **File-based sample-wise processing:** Reads sample count files individually to reduce cohort-level memory requirements.
+- **Residual library-size diagnostics:** Tests whether bin-anchored alpha diversity remains detectably associated with original library size after multi-bin rarefaction.
 
 ## Main Functions
 
