@@ -78,27 +78,43 @@ Then call the library via
 
 ```{r librarysetup, echo=TRUE}
 library(MBRarefy)
+library(GAReg)
+library(changepointGA)
 ```
 
 
 ## Key Features
 
-- **Multi-bin rarefaction:** Stratifies samples by library size and rarefies samples within each bin to a bin-specific depth.
+- **Multi-bin rarefying:** Stratifies samples by library size and rarefies samples within each bin to a bin-specific depth.
 - **Data-adaptive cutpoint selection:** Selects library-size bin cutpoints by minimizing residual within-bin association between alpha diversity and original library size.
 - **Fixed-\(K\) and varying-\(K\) modes:** Supports user-specified bin complexity through fixed-\(K\) selection and data-adaptive bin complexity through varying-\(K\) selection.
 - **Alpha diversity metrics:** Supports observed richness, Shannon entropy, Simpson/Gini-Simpson index, Chao1, bias-corrected Chao1, and Pielou evenness.
-- **Repeated rarefaction:** Supports repeated subsampling to stabilize alpha-diversity estimates across rarefaction replicates.
+- **Repeated rarefying:** Supports repeated subsampling to stabilize alpha-diversity estimates across rarefying replicates.
 - **Parallel execution:** Supports multi-core computation through `foreach` and `doParallel`.
 - **Cross-bin meta-analysis:** Combines bin-specific association results using equal, sample-size, or inverse-variance weighting.
 - **File-based sample-wise processing:** Reads sample count files individually to reduce cohort-level memory requirements.
-- **Residual library-size diagnostics:** Tests whether bin-anchored alpha diversity remains detectably associated with original library size after multi-bin rarefaction.
+- **Residual library-size diagnostics:** Tests whether bin-anchored alpha diversity remains detectably associated with original library size after multi-bin rarefying.
 
 ## Main Functions
 
-- `multibin.rarefy.diversity()`: Wrapper to run alpha rarefaction across replicates and bins.
-- `rarefy.alpha()`: Core functions for computing diversity metrics after rarefaction.
+- `multibin.rarefy.diversity()`: Wrapper to run alpha rarefying across replicates and bins.
+- `rarefy.alpha()`: Core functions for computing diversity metrics after rarefying.
 - `get_alpha_metric_matrix()`: Aggregate results across replicates into summary matrices.
 - `multibin.meta.test.alpha()`: Perform meta-analysis of diversity associations using replicate-resolved statistics.
+
+
+## Main Functions
+
+- `multibin.rarefy.diversity()`: Runs repeated rarefying over a user-specified depth grid and computes alpha diversity metrics for each eligible sample.
+- `rarefy.alpha()`: Computes alpha diversity metrics after rarefying for a single sample or count profile.
+- `get_alpha_metric_matrix()`: Aggregates replicate-resolved rarefying results into sample-by-depth alpha diversity matrices.
+- `fixBinRegObj()`: Objective function for fixed-\(K\) GA-based library-size cutpoint selection.
+- `varBinRegObj()`: Objective function for varying-\(K\) GA-based library-size cutpoint selection.
+- `multibin.meta.test.alpha()`: Performs bin-wise alpha diversity association tests and combines bin-specific results by cross-bin meta-analysis.
+
+Cutpoint optimization is carried out using `GAReg::gareg_knots()` with `fixBinRegObj()` or `varBinRegObj()` supplied as the objective function.
+
+
 
 # Multi-bin Approach Workflow for TCR and Microbiome Alpha Diversity Association Analysis
 
@@ -129,7 +145,7 @@ These .txt files are then used as input to the rarefying pipeline, allowing for 
 
 To evaluate the confounding relationship between the estimated alpha diversities and the original library sizes across a range of rarefying depths, `MBRarefy` performs multi-bin rarefying over a user-specified grid of rarefying depths using `multibin.rarefy.diversity()`, repeating the process across multiple replicates (`nRep`) and optionally parallelizing the computation using the `doParallel` package. 
 
-For input, each sample is represented by a compact count profile saved as a plain-text file (.txt) in a user-specified directory (`InputDataDir` above). Each file contains the unique sequence identifiers (e.g., ASVs/OTUs for microbiome data or CDR3 nucleotide sequences for TCR data) and their corresponding counts. This lightweight format avoids dependence on platform-specific raw outputs while preserving the information required for rarefaction-based diversity estimation.
+For input, each sample is represented by a compact count profile saved as a plain-text file (.txt) in a user-specified directory (`InputDataDir` above). Each file contains the unique sequence identifiers (e.g., ASVs/OTUs for microbiome data or CDR3 nucleotide sequences for TCR data) and their corresponding counts. This lightweight format avoids dependence on platform-specific raw outputs while preserving the information required for rarefying-based diversity estimation.
 
 ```{r eval=FALSE, echo=TRUE}
 SeqVar   <- "seq"
@@ -167,7 +183,7 @@ The example nested list structure of the output `raw.multibin.alpha.res` can be 
 
 A key step in multibin rarefying is defining library size cutpoints that partition samples into bins for within-bin rarefying and inference. `MBRarefy` provides an automated, data-adaptive procedure to select these cutpoints from the observed library-size distribution, reducing ad hoc choices based on visual inspection or fixed rules.
 
-Given a user-specified rarefying depth grid (`depths` from above) and a target number of bins $K$ (or a complexity penalty), the function `optimalbin()` searches for a common set of ordered cutpoints that yields bins with adequate sample size and stable estimation. Cutpoints are chosen to minimize residual within-bin association between rarefaction-based alpha diversity and original library size evaluated at bin anchor depths, optionally adjusting for nuisance covariates (e.g., batch or sequencing run). This criterion targets bins in which alpha-diversity estimates are least confounded by library size, improving comparability across samples while retaining more information than single-depth rarefaction. Details can be found in Li (2026).
+Given a user-specified rarefying depth grid (`depths` from above) and a target number of bins $K$ (or a complexity penalty), the function `optimalbin()` searches for a common set of ordered cutpoints that yields bins with adequate sample size and stable estimation. Cutpoints are chosen to minimize residual within-bin association between rarefying-based alpha diversity and original library size evaluated at bin anchor depths, optionally adjusting for nuisance covariates (e.g., batch or sequencing run). This criterion targets bins in which alpha-diversity estimates are least confounded by library size, improving comparability across samples while retaining more information than single-depth rarefying. Details can be found in Li (2026).
 
 The optimization is performed using a genetic algorithm (GA) constraint-aware search routine that enforces ordered cutpoints, minimum bin size, and optional minimum spacing on the depth grid. `MBRarefy` returns the selected cutpoints, bin assignments, and diagnostics (objective values and bin-level summaries) to support reproducible reporting and sensitivity analyses.
 
@@ -185,7 +201,7 @@ alphamethods           = CMV1$methods
 
 Here, the total library size (`totalReads`) is calculated for each sample by summing the count column. The names are aligned with the sample names in the alpha diversity matrix. The corresponding phenotype metadata (`dataPheno`) is loaded and aligned with the same sample ordering. The total read counts are appended to the phenotype table (`dataPheno`) for further analysis.
 
-We then summarize replicates. After performing multiple rarefaction replicates, the function `get_alpha_metric_matrix()` is used to aggregate alpha diversity metrics for each sample and rarefaction depth. For each diversity measure, it returns a matrix where rows correspond to samples and columns correspond to rarefying depths. Each entry in the matrix represents the average value of the corresponding metric across all replicates. Here we pick "the number of unique sequences", also known as richness, as the illustrative example.
+We then summarize replicates. After performing multiple rarefying replicates, the function `get_alpha_metric_matrix()` is used to aggregate alpha diversity metrics for each sample and rarefying depth. For each diversity measure, it returns a matrix where rows correspond to samples and columns correspond to rarefying depths. Each entry in the matrix represents the average value of the corresponding metric across all replicates. Here we pick "the number of unique sequences", also known as richness, as the illustrative example.
 
 ```{r}
 alpha.mats <- get_alpha_metric_matrix(raw.multibin.alpha.res, metrics=alphamethods)
@@ -211,7 +227,7 @@ This suggests that given the specified rarefying level, the overall-rarefying ap
 
 Now we decrible the multibin rarefying approach with optimal bin thresholds selection.
 
-Using a grid of $M=100$ rarefying levels spanning from 1e5 to 1e7 from `depths` above, we form a monotone grid set for the candidate optimal bin thresholding values. Before the multibin association analysis, we choose an optimal binning of $\boldsymbol{L}_{\text{grid}}$ that minimizes residual dependence between the original library size and alpha diversity within bins (Li et al., 2026). Given a rarefaction depth grid of length $M=100$ and the pre-computed alpha diversity matrix, we consider two real-world application scenarios: (i) the number of cutting thresholds is specified, or (ii) it must be estimated. For each scenario, we formulate a dedicated objective function and optimize it using the R package `GAReg` (Li et al., 2026). The proposed objective functions, `fixBinRegObj()` and `varyBinRegObj()`, are designed to meet our specific needs and are included in our `MBRarefy` package.
+Using a grid of $M=100$ rarefying levels spanning from 1e5 to 1e7 from `depths` above, we form a monotone grid set for the candidate optimal bin thresholding values. Before the multibin association analysis, we choose an optimal binning of $\boldsymbol{L}_{\text{grid}}$ that minimizes residual dependence between the original library size and alpha diversity within bins (Li et al., 2026). Given a rarefying depth grid of length $M=100$ and the pre-computed alpha diversity matrix, we consider two real-world application scenarios: (i) the number of cutting thresholds is specified, or (ii) it must be estimated. For each scenario, we formulate a dedicated objective function and optimize it using the R package `GAReg` (Li et al., 2026). The proposed objective functions, `fixBinRegObj()` and `varyBinRegObj()`, are designed to meet our specific needs and are included in our `MBRarefy` package.
 
 - Model 1: With user-specified number of bins (``fixed-K'');
 
@@ -264,7 +280,7 @@ res_fix$plot
 ```{r varynumbbin, fig.width=10, fig.height=7}
 var_fit <- GAReg::gareg_knots(
   y         = rep(0, length(Lgrid)),           # placeholder for API symmetry to GAReg
-  x         = Lgrid,                           # rarefaction grid (length M)
+  x         = Lgrid,                           # rarefying grid (length M)
   ObjFunc   = varBinRegObj,
   gaMethod  = "cptga",
   minDist   = 1L,                              # set 0L if you want no spacing guard
@@ -313,7 +329,7 @@ depths_op
 
 4. Multibin rarefying and alpha-diversity extraction given selected optimal thresholds.
 
-After selecting the optimal cutpoints $\hat{\boldsymbol c}$, the package (i) assigns samples to bins based on their library sizes, (ii) determines a bin-specific rarefaction depth $m_k$ as the minimum library size within each bin, and (iii) rarefies all samples in bin $k$ to $m_k$ (subsampling without replacement). Alpha-diversity metrics are computed on the rarefied profiles and can be summarized within bins and across bins. When $R>1$, \texttt{MBRarefy} repeats the rarefaction step $R$ times per bin and reports the mean (and optional standard deviation) of the diversity estimates across replicates, improving stability when counts are sparse. The function returns the selected cutpoints, bin assignments, depths $\{m_k\}$, per-sample diversity estimates, and diagnostic summaries to support reproducible reporting and sensitivity analyses.
+After selecting the optimal cutpoints $\hat{\boldsymbol c}$, the package (i) assigns samples to bins based on their library sizes, (ii) determines a bin-specific rarefying depth $m_k$ as the minimum library size within each bin, and (iii) rarefies all samples in bin $k$ to $m_k$ (subsampling without replacement). Alpha-diversity metrics are computed on the rarefied profiles and can be summarized within bins and across bins. When $R>1$, \texttt{MBRarefy} repeats the rarefying step $R$ times per bin and reports the mean (and optional standard deviation) of the diversity estimates across replicates, improving stability when counts are sparse. The function returns the selected cutpoints, bin assignments, depths $\{m_k\}$, per-sample diversity estimates, and diagnostic summaries to support reproducible reporting and sensitivity analyses.
 
 Given the overall distribution of library sizes (library sizes) ${L_i}$, $i=1,\ldots,n$, and the selected $K-1$ optimal cutpoints, $\hat{c}_{k}$, $k=1,\ldots,K-1$, the TCR profiles are divided into $K$ bins. The choice of threshold values for binning should reflect the observed range and distribution of all $L_i$ across samples. Let:
 $$min(L_{i})=c_{0}\leq c_{1}<\ldots<c_{K-1}\leq c_{K}=max(L_{i})$$
