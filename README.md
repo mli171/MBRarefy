@@ -104,7 +104,7 @@ browseVignettes("MBRarefy")
 
 ## Reference
 
-[1] Li, M. (2026). MBRarefy: data adaptive multi-bin rarefying for alpha diversity association analysis.
+[1] Li, M. (2026). MBRarefy: data-adaptive multi-bin rarefying for alpha diversity association analysis.
 
 [2] Li, Mo, Xing Hua, Shuai Li, Michael C. Wu, and Ni Zhao. "A multi-bin rarefying method for evaluating alpha diversities in TCR sequencing data." Bioinformatics 40, no. 7 (2024): btae431. https://doi.org/10.1093/bioinformatics/btae431.
 
