@@ -34,7 +34,7 @@ This package is especially useful when:
 
 ## Required packages
 
-`MBrarefy` relies on the following Comprehensive R Archive Network (CRAN) packages:
+`MBRarefy` relies on the following Comprehensive R Archive Network (CRAN) packages:
 
 - doParallel
 - parallel
