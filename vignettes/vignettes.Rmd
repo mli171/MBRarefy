@@ -119,8 +119,8 @@ The package vignettes illustrate the full \texttt{MBRarefy} workflow using two r
 The main steps are:
 
 1. **Prepare input files and metadata.** Each sample is represented by a feature-count file, and sample metadata are aligned by sample identifiers.
-2. **Compute rarefaction profiles.** `multibin.rarefy.diversity()` rarefies each eligible sample over the specified depth grid and computes alpha diversity metrics.
-3. **Summarize replicate-resolved results.** `get_alpha_metric_matrix()` averages over repeated rarefaction replicates and returns a sample-by-depth alpha diversity matrix.
+2. **Compute rarefying profiles.** `multibin.rarefy.diversity()` rarefies each eligible sample over the specified depth grid and computes alpha diversity metrics.
+3. **Summarize replicate-resolved results.** `get_alpha_metric_matrix()` averages over repeated rarefying replicates and returns a sample-by-depth alpha diversity matrix.
 4. **Select library-size cutpoints.** `GAReg::gareg_knots()` is used with `fixBinRegObj()` for fixed-\(K\) selection or `varBinRegObj()` for varying-\(K\) selection.
 5. **Extract bin-anchored alpha diversity.** Samples are assigned to library-size bins, and diversity is evaluated at each bin’s lower rarefying depth.
 6. **Run association tests and meta-analysis.** `multibin.meta.test.alpha()` performs bin-wise association testing and combines evidence across bins using equal, sample-size, or inverse-variance weighting.
@@ -452,7 +452,7 @@ colnames(counts_one) <- dataPheno$sample_id
 Because \texttt{MBRarefy} is designed to support both immune-repertoire and microbiome count data, we used a common file-based input format for the baboon gut microbiome analysis. Specifically, the microbiome count table was split into separate plain-text files, with one file corresponding to one selected sample. Each file contained two columns: \texttt{seq}, giving the feature identifier, such as an ASV or sequence label, and \texttt{count}, giving the observed count of that feature in the sample. The directory specified by \texttt{InputDataDir} therefore stores the per-sample count profiles used by \texttt{multibin.rarefy.diversity()} for grid-based repeated rarefying. This format makes the microbiome analysis consistent with the package’s TCR workflow, where each sample is also represented by a separate feature-count file.
 
 ```{r eval=FALSE, echo=TRUE}
-InputDataDir <- "~/Desktop/TCR/MBRarefyPaper/BaboonGut_MBRarefy_Input_one_per_baboon/"
+InputDataDir <- file.path(tempdir(), "BaboonGut_MBRarefy_Input_one_per_baboon")
 dir.create(InputDataDir, showWarnings = FALSE, recursive = TRUE)
 
 ## remove old/stale files if any
@@ -474,7 +474,7 @@ for (j in seq_len(ncol(counts_one))) {
 }
 ```
 
-2. Multibin rarefying across a user-defined library size grid (with optional multiple rarefying).
+2. Compute repeated rarefaction profiles over a depth grid.
 
 ```{r eval=FALSE, echo=TRUE}
 SeqVar <- "seq"
@@ -507,7 +507,9 @@ tim2 - tim1
 ```
 
 
-3. Data-adaptive library-size binning via optimal thresholds selection.
+3. Load precomputed alpha diversity results.
+
+For convenience, this vignette uses the precomputed baboon gut microbiome alpha-diversity results included with the package.
 
 ```{r}
 load("../data/baboongut1.rda")
@@ -525,13 +527,15 @@ USC <- alpha.mats$unique_seq_alpha
 dataPheno <- dataPheno[match(rownames(USC), rownames(dataPheno)), , drop = FALSE]
 ```
 
+4. Overall rarefying diagnostics
+
 We apply the overall rarefying technique to reduce the varying library size. We select the rarefying level to be 
 
 ```{r}
 Lorig <- as.numeric(dataPheno$totalReads)
 Lgrid <- depths
 Y <- as.matrix(USC)
-overall_depths <- c(10000, 30000, 50000, 70000)
+overall_depths <- c(50000, 69000, 82000, 91000)
 
 run_overall_diag <- function(x, x_name) {
   do.call(rbind, lapply(overall_depths, function(d) {
@@ -556,15 +560,21 @@ overall_diag_list$totalReads = run_overall_diag(x=dataPheno$totalReads, x_name="
 overall_diag_list$age = run_overall_diag(x=as.numeric(dataPheno$age), x_name="age")
 sex_x <- as.numeric(as.factor(dataPheno$sex)) - 1
 overall_diag_list$sex = run_overall_diag(x=sex_x, x_name="sex")
-season_x <- as.numeric(as.factor(dataPheno$season)) - 1
-overall_diag_list$season = run_overall_diag(x=season_x, x_name="sex")
+groupsize_x <- as.numeric(dataPheno$group_size)
+overall_diag_list$group_size <- run_overall_diag(x=groupsize_x, x_name="group_size")
 
 overall_diag <- do.call(rbind, overall_diag_list)
 overall_diag
-
 ```
+These diagnostics show that single-depth overall rarefying produced depth-dependent results. The residual association between rarefied richness and original library size was significant at 50k, 69k, and 82k reads, but became non-significant at 91k reads, where only 236 samples were retained. Covariate associations also depended on the chosen rarefying depth: sex was significant at 50k and 69k reads but not at higher depths, whereas group size became significant only at 91k reads. This illustrates that single-depth rarefaction can change both the retained sample set and the resulting covariate associations.
 
-- Model 1: With user-specified number of bins (``fixed-K'');
+5. Data-adaptive library-size cutpoint selection
+
+We next select data-adaptive library-size cutpoints using the precomputed sample-by-depth richness matrix. The fixed-$K$ mode uses a user-specified number of interior cutpoints, whereas the varying-$K$ mode estimates the cutpoint complexity from the data.
+
+Because GA-based cutpoint selection is stochastic, we set a fixed random seed before each call to `GAReg::gareg_knots()` for reproducibility. In applied analyses, users can repeat the search under several seeds and check whether the residual library-size diagnostics and downstream association results are stable.
+
+- Model 1: With user-specified number of bins (``fixed-$K$'');
 
 ```{r}
 fix_fit <- GAReg::gareg_knots(
@@ -588,15 +598,12 @@ fix_fit <- GAReg::gareg_knots(
 )
 
 summary(fix_fit)
-best_idx_fix <- as.integer(fix_fit@bestsol)
-
+best_idx_fix <- fix_fit@bestsol
 best_knots_fix <- Lgrid[best_idx_fix]
-depths_op_fix <- sort(unique(c(min(Lgrid), best_knots_fix)))
+depths_op_fix <- c(min(Lgrid), best_knots_fix)
 
-best_idx_fix
 best_knots_fix
 depths_op_fix
-
 ```
 
 
@@ -618,7 +625,7 @@ res_fix <- plotMBRarefy(
 res_fix$plot
 ```
 
-- Model 2: With estimated number of bins (``vary-K'');
+- Model 2: With estimated number of bins (``varying-$K$'');
 
 ```{r}
 var_fit <- GAReg::gareg_knots(
@@ -642,15 +649,12 @@ var_fit <- GAReg::gareg_knots(
 
 summary(var_fit)
 
-best_idx_var <- as.integer(var_fit@bestsol)
-
+best_idx_var <- var_fit@bestsol
 best_knots_var <- Lgrid[best_idx_var]
-depths_op_var <- sort(unique(c(min(Lgrid), best_knots_var)))
+depths_op_var <- c(min(Lgrid), best_knots_var)
 
-best_idx_var
 best_knots_var
 depths_op_var
-
 ```
 
 
@@ -671,55 +675,70 @@ res_var <- plotMBRarefy(
 res_var$plot
 ```
 
-4. Multibin rarefying and alpha-diversity extraction given selected optimal thresholds.
+6. Cross-bin association testing and Meta-analysis.
 
-We picked the ``fixed-K'' mode for illustration.
+We picked the ``fixed-$K$'' mode for illustration.
 
 ```{r}
+depths_op <- depths_op_fix
+BinCuts <- c(depths_op, Inf)
 USC_mat <- USC[,paste0("RarefyTo", depths_op_fix)]
 ```
 
-5. Cross-bin association testing and Meta-analysis.
-
 ```{r}
 res.test.libsize <- multibin.meta.test.alpha(
-  y.alpha.mat=USC_mat, 
-  xs=dataPheno$totalReads,
-  totalReads=dataPheno$totalReads, 
-  BinCuts=c(depths_op_fix, Inf))
+  y.alpha.mat = USC_mat,
+  xs          = dataPheno$totalReads,
+  totalReads  = dataPheno$totalReads,
+  BinCuts     = BinCuts
+)
+# res.test.libsize$Multi.bin.Equal
+# res.test.libsize$Multi.bin.SSW
 res.test.libsize$Multi.bin.IVW
 ```
 
 ```{r}
+age_x <- as.numeric(dataPheno$age)
 res.test.age <- multibin.meta.test.alpha(
-  y.alpha.mat=USC_mat, 
-  xs=as.numeric(dataPheno$age),
-  totalReads=dataPheno$totalReads, 
-  BinCuts=c(depths_op_fix, Inf))
+  y.alpha.mat = USC_mat,
+  xs          = age_x,
+  totalReads  = Lorig,
+  BinCuts     = BinCuts
+)
+# res.test.age$Multi.bin.Equal
+# res.test.age$Multi.bin.SSW
 res.test.age$Multi.bin.IVW
 ```
 
 ```{r}
+sex_x <- as.numeric(as.factor(dataPheno$sex)) - 1
 res.test.sex <- multibin.meta.test.alpha(
-  y.alpha.mat=USC_mat, 
-  xs=as.numeric(as.factor(dataPheno$sex))-1,
-  totalReads=dataPheno$totalReads, 
-  BinCuts=c(depths_op_fix, Inf))
+  y.alpha.mat = USC_mat,
+  xs          = sex_x,
+  totalReads  = Lorig,
+  BinCuts     = BinCuts
+)
+# res.test.sex$Multi.bin.Equal
+# res.test.sex$Multi.bin.SSW
 res.test.sex$Multi.bin.IVW
 ```
 
 
 ```{r}
-res.test.season <- multibin.meta.test.alpha(
-  y.alpha.mat=USC_mat, 
-  xs=as.numeric(as.factor(dataPheno$season))-1,
-  totalReads=dataPheno$totalReads, 
-  BinCuts=c(depths_op_fix, Inf))
-res.test.season$Multi.bin.IVW
+group_size <- as.numeric(dataPheno$group_size)
+res.test.group_size <- multibin.meta.test.alpha(
+  y.alpha.mat = USC_mat,
+  xs          = group_size,
+  totalReads  = Lorig,
+  BinCuts     = BinCuts
+)
+# res.test.group_size$Multi.bin.Equal
+# res.test.group_size$Multi.bin.SSW
+res.test.group_size$Multi.bin.IVW
 ```
 
 
-
+This microbiome example also illustrates how `MBRarefy` can reduce detectable residual library-size dependence while retaining host and ecological covariate associations in a subject-level wild baboon gut microbiome analysis.
 
 
 
