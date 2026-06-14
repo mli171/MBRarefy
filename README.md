@@ -1,5 +1,7 @@
 # MBRarefy
-A multi-bin rarefying method for testing the association between alpha diversities with covariates. This package provides the multi-bin rarefying approach that partitions samples into multiple bins according to their library sizes, conducts rarefying within each bin for alpha diversity calculations, and performs meta-analysis across the association study results from each bin.
+`MBRarefy` provides an R workflow for alpha diversity association analysis under heterogeneous library sizes in high-throughput count-profile data, including immune-repertoire and microbiome sequencing datasets. The package implements the multi-bin rarefying framework, in which samples are partitioned into library-size bins, rarefied within bins to bin-specific depths, and analyzed by bin-wise association testing followed by cross-bin meta-analysis.
+
+A key feature of `MBRarefy` is automated, data-adaptive library-size cutpoint selection using GA-based ordered knot placement. The package supports fixed-K and varying-K bin selection, repeated rarefying for Monte Carlo stabilization, residual library-size diagnostics, and standardized outputs for downstream association analysis.
 
 ## Installation
 You can install the latest version of MBRarefy from Github:
@@ -8,7 +10,7 @@ You can install the latest version of MBRarefy from Github:
 pak::pak("mli171/MBRarefy")
 ```
 
-or from CRAN
+or once available on CRAN
 
 ```{r}
 install.packages("MBRarefy")
