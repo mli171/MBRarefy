@@ -17,6 +17,7 @@ varBinRegObj(
   weight = c("count", "equal", "width"),
   min_subjects = 8L,
   minDist = NULL,
+  min_knots = 0L,
   use_logL = TRUE
 )
 }
@@ -58,6 +59,10 @@ meet this or fail numerically are penalized with \eqn{R^2=1}.}
 knot indices (in \emph{grid steps}). If provided and violated, the chromosome
 is infeasible.}
 
+\item{min_knots}{Integer; minimum number of selected interior knots. Use
+\code{min_knots = 1L} to exclude the one-bin solution in varying-\eqn{K}
+sensitivity analyses.}
+
 \item{use_logL}{Logical; if \code{TRUE} (default) uses \eqn{\log_{10}(Lorig)}
 as the regressor in the partial-\eqn{R^2}; otherwise uses raw \code{Lorig}.}
 }
@@ -91,9 +96,10 @@ indices in \code{2:(M-1)}, sort them, and optionally enforce a minimum spacing
 \code{minDist} in grid units. The resulting set defines \eqn{m} interior knots.
 
 \strong{Bins and anchors.} With interior indices \eqn{\tau_1<\cdots<\tau_m},
-set \code{edges_idx <- c(1, tau, M)} and \code{breaks <- x_unique[edges_idx]}.
-Assign samples by \eqn{(breaks_b,\,breaks_{b+1}]} on \code{Lorig}. The anchor
-column for bin \eqn{b} is \code{edges_idx[b]} (the bin’s \emph{lower} grid bound).
+define operational lower-bound depths \code{x_unique[c(1, tau)]} and bin
+boundaries \code{c(x_unique[c(1, tau)], Inf)}. Subjects are assigned to
+half-open bins \eqn{[c_b, c_{b+1})}. The anchor column for bin \eqn{b} is
+the bin's lower-bound grid index.
 
 \strong{Per-bin metric.} In each bin, the response is \code{Y[, anchor]}, the
 predictor is \code{log10(Lorig)} if \code{use_logL=TRUE} else \code{Lorig}, and

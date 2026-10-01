@@ -91,10 +91,11 @@ reads the tail of \code{knot_bin} up to the first occurrence of \eqn{M+1} (senti
 keeps the first \eqn{m=\code{fixedknots}} interior indices in \eqn{\{2,\dots,M-1\}},
 enforces uniqueness and optional \code{minDist}, and sorts them.
 
-\strong{Bins and anchors.} With interior indices \eqn{\tau_1<\cdots<\tau_m}, define
-\code{edges_idx <- c(1, tau, M)} and cutpoints \code{breaks <- x_unique[edges_idx]}.
-Subjects are assigned by \eqn{(breaks_b, breaks_{b+1}]} on \code{Lorig}. The anchor
-column for bin \eqn{b} is \code{edges_idx[b]} (the bin’s \emph{lower} grid bound).
+\strong{Bins and anchors.} With interior indices \eqn{\tau_1<\cdots<\tau_m},
+define operational lower-bound depths \code{x_unique[c(1, tau)]} and bin
+boundaries \code{c(x_unique[c(1, tau)], Inf)}. Subjects are assigned to
+half-open bins \eqn{[c_b, c_{b+1})}. The anchor column for bin \eqn{b} is
+the bin's lower-bound grid index.
 
 \strong{Binwise metric.} For each bin, the response is \code{Y[, anchor]}, the
 predictor is \code{log10(Lorig)} if \code{use_logL=TRUE} else \code{Lorig}, optionally

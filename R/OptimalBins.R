@@ -40,6 +40,7 @@
 #' One QR solve per call; computational cost is \eqn{O(n p^2)} with
 #' \eqn{p = 2 + q}.
 #'
+#' @import changepointGA
 #' @importFrom GAReg gareg_knots
 #' @examples
 #' set.seed(1)
@@ -92,6 +93,49 @@
   tval <- as.numeric(beta[2] / se_L)
   # exact partial R^2
   tval^2 / (tval^2 + df)
+}
+
+.mbrarefy_selected_indices <- function(fit = NULL, best_knots = NULL, Lgrid) {
+  Lgrid <- as.numeric(Lgrid)
+  if (!is.null(best_knots)) {
+    best_knots <- sort(unique(as.numeric(best_knots)))
+    idx <- match(best_knots, Lgrid)
+    if (any(is.na(idx))) {
+      idx <- vapply(best_knots, function(z) which.min(abs(Lgrid - z)), integer(1L))
+    }
+    idx <- sort(unique(idx[idx >= 2L & idx <= (length(Lgrid) - 1L)]))
+    return(idx)
+  }
+
+  if (is.null(fit)) stop("Provide either 'fit' or 'best_knots'.", call. = FALSE)
+  idx <- as.integer(fit@bestsol)
+  sort(unique(idx[is.finite(idx) & idx >= 2L & idx <= (length(Lgrid) - 1L)]))
+}
+
+.mbrarefy_bin_definition <- function(Lgrid, idx = integer(0L)) {
+  Lgrid <- as.numeric(Lgrid)
+  idx <- sort(unique(as.integer(idx)))
+  idx <- idx[idx >= 2L & idx <= (length(Lgrid) - 1L)]
+  anchor_idx <- c(1L, idx)
+  depths_op <- Lgrid[anchor_idx]
+  BinCuts <- c(depths_op, Inf)
+  list(anchor_idx = anchor_idx, depths_op = depths_op, BinCuts = BinCuts)
+}
+
+.mbrarefy_bin_id <- function(Lorig, BinCuts) {
+  cut(
+    as.numeric(Lorig),
+    breaks = as.numeric(BinCuts),
+    right = FALSE,
+    include.lowest = TRUE,
+    labels = FALSE
+  )
+}
+
+.mbrarefy_bin_widths <- function(Lgrid, anchor_idx) {
+  upper_idx <- c(anchor_idx[-1L], length(Lgrid))
+  pmax(as.numeric(Lgrid[upper_idx]) - as.numeric(Lgrid[anchor_idx]),
+       .Machine$double.eps)
 }
 
 
@@ -151,10 +195,11 @@
 #' keeps the first \eqn{m=\code{fixedknots}} interior indices in \eqn{\{2,\dots,M-1\}},
 #' enforces uniqueness and optional \code{minDist}, and sorts them.
 #'
-#' \strong{Bins and anchors.} With interior indices \eqn{\tau_1<\cdots<\tau_m}, define
-#' \code{edges_idx <- c(1, tau, M)} and cutpoints \code{breaks <- x_unique[edges_idx]}.
-#' Subjects are assigned by \eqn{(breaks_b, breaks_{b+1}]} on \code{Lorig}. The anchor
-#' column for bin \eqn{b} is \code{edges_idx[b]} (the bin’s \emph{lower} grid bound).
+#' \strong{Bins and anchors.} With interior indices \eqn{\tau_1<\cdots<\tau_m},
+#' define operational lower-bound depths \code{x_unique[c(1, tau)]} and bin
+#' boundaries \code{c(x_unique[c(1, tau)], Inf)}. Subjects are assigned to
+#' half-open bins \eqn{[c_b, c_{b+1})}. The anchor column for bin \eqn{b} is
+#' the bin's lower-bound grid index.
 #'
 #' \strong{Binwise metric.} For each bin, the response is \code{Y[, anchor]}, the
 #' predictor is \code{log10(Lorig)} if \code{use_logL=TRUE} else \code{Lorig}, optionally
@@ -251,18 +296,18 @@ fixBinRegObj <- function(
   Lb <- 2L; Ub <- M - 1L
   if (any(!is.finite(idx)) || any(idx < Lb) || any(idx > Ub)) return(Inf)
   if (anyDuplicated(idx)) return(Inf)
-  if (!is.null(minDist) && any(diff(idx) <= as.integer(minDist))) return(Inf)
+  if (!is.null(minDist) && length(idx) > 1L && any(diff(idx) < as.integer(minDist))) return(Inf)
 
-  # ----- bins on the grid; lower-bound column = edges_idx[b] -----
-  edges_idx <- c(1L, idx, M)
-  breaks    <- x_unique[edges_idx]
-  B         <- length(edges_idx) - 1L
+  # ----- bins on the grid; lower-bound column = anchor_idx[b] -----
+  bin_def    <- .mbrarefy_bin_definition(x_unique, idx)
+  anchor_idx <- bin_def$anchor_idx
+  B          <- length(anchor_idx)
 
-  # map subjects to bins by original library size ( (breaks[b], breaks[b+1]] )
-  bin_id <- findInterval(L_use_raw, breaks, rightmost.closed = TRUE, all.inside = TRUE)
+  # map subjects to bins by original library size: [lower, next lower)
+  bin_id <- .mbrarefy_bin_id(L_use_raw, bin_def$BinCuts)
 
   # bin widths for optional weighting
-  widths <- x_unique[edges_idx[-1L]] - x_unique[edges_idx[-length(edges_idx)]]
+  widths <- .mbrarefy_bin_widths(x_unique, anchor_idx)
 
   # per-bin metric & counts (initialize with penalty 1)
   R2b <- rep(1.0, B)
@@ -272,7 +317,7 @@ fixBinRegObj <- function(
     rows_b <- which(bin_id == b)
     if (!length(rows_b)) next
 
-    jLB <- edges_idx[b]
+    jLB <- anchor_idx[b]
     y_b <- Y[rows_b, jLB, drop = TRUE]
     L_b <- L_use[rows_b]
 
@@ -298,6 +343,7 @@ fixBinRegObj <- function(
                count = nb,
                equal = rep(1, B),
                width = pmax(widths, .Machine$double.eps))
+  if (sum(wb) <= 0) return(Inf)
   wb <- wb / sum(wb)
 
   # weighted aggregate (smaller is better)
@@ -347,6 +393,9 @@ fixBinRegObj <- function(
 #' @param minDist Optional integer; minimum spacing between consecutive interior
 #'   knot indices (in \emph{grid steps}). If provided and violated, the chromosome
 #'   is infeasible.
+#' @param min_knots Integer; minimum number of selected interior knots. Use
+#'   \code{min_knots = 1L} to exclude the one-bin solution in varying-\eqn{K}
+#'   sensitivity analyses.
 #' @param use_logL Logical; if \code{TRUE} (default) uses \eqn{\log_{10}(Lorig)}
 #'   as the regressor in the partial-\eqn{R^2}; otherwise uses raw \code{Lorig}.
 #'
@@ -362,9 +411,10 @@ fixBinRegObj <- function(
 #' \code{minDist} in grid units. The resulting set defines \eqn{m} interior knots.
 #'
 #' \strong{Bins and anchors.} With interior indices \eqn{\tau_1<\cdots<\tau_m},
-#' set \code{edges_idx <- c(1, tau, M)} and \code{breaks <- x_unique[edges_idx]}.
-#' Assign samples by \eqn{(breaks_b,\,breaks_{b+1}]} on \code{Lorig}. The anchor
-#' column for bin \eqn{b} is \code{edges_idx[b]} (the bin’s \emph{lower} grid bound).
+#' define operational lower-bound depths \code{x_unique[c(1, tau)]} and bin
+#' boundaries \code{c(x_unique[c(1, tau)], Inf)}. Subjects are assigned to
+#' half-open bins \eqn{[c_b, c_{b+1})}. The anchor column for bin \eqn{b} is
+#' the bin's lower-bound grid index.
 #'
 #' \strong{Per-bin metric.} In each bin, the response is \code{Y[, anchor]}, the
 #' predictor is \code{log10(Lorig)} if \code{use_logL=TRUE} else \code{Lorig}, and
@@ -418,6 +468,7 @@ varBinRegObj <- function(
     weight = c("count","equal","width"),
     min_subjects = 8L,
     minDist = NULL,
+    min_knots = 0L,
     use_logL = TRUE
 ) {
   weight <- match.arg(weight)
@@ -436,18 +487,19 @@ varBinRegObj <- function(
 
   idx <- sort(unique(as.integer(tail[seq_len(end_pos - 1L)])))
   idx <- idx[idx >= 2L & idx <= (M - 1L)]
+  if (length(idx) < as.integer(min_knots)) return(Inf)
   # optional spacing (grid units)
-  if (!is.null(minDist) && length(idx) > 1L && any(diff(idx) <= as.integer(minDist))) return(Inf)
+  if (!is.null(minDist) && length(idx) > 1L && any(diff(idx) < as.integer(minDist))) return(Inf)
 
-  edges_idx <- c(1L, idx, M)
-  breaks    <- x_unique[edges_idx]
-  B         <- length(edges_idx) - 1L
+  bin_def    <- .mbrarefy_bin_definition(x_unique, idx)
+  anchor_idx <- bin_def$anchor_idx
+  B          <- length(anchor_idx)
 
-  # bin assignment uses RAW library sizes; bins are (breaks[b], breaks[b+1]]
-  bin_id <- findInterval(Lorig, breaks, rightmost.closed = TRUE, all.inside = TRUE)
+  # bin assignment uses RAW library sizes; bins are [lower, next lower)
+  bin_id <- .mbrarefy_bin_id(Lorig, bin_def$BinCuts)
 
   # weights
-  widths <- x_unique[edges_idx[-1L]] - x_unique[edges_idx[-length(edges_idx)]]
+  widths <- .mbrarefy_bin_widths(x_unique, anchor_idx)
   wb <- switch(weight,
                count = as.numeric(table(factor(bin_id, levels = seq_len(B)))),
                equal = rep(1, B),
@@ -464,7 +516,7 @@ varBinRegObj <- function(
     rows_b <- which(bin_id == b)
     if (!length(rows_b)) next
 
-    jLB <- edges_idx[b]                           # lower-bound anchor column
+    jLB <- anchor_idx[b]                          # lower-bound anchor column
     y_b <- Y[rows_b, jLB, drop = TRUE]
     L_b <- L_model[rows_b]
 
@@ -481,4 +533,232 @@ varBinRegObj <- function(
 
   # objective = weighted mean of binwise partial R^2 (smaller is better)
   sum(wb * R2b)
+}
+
+#' Select MBRarefy Library-Size Bins
+#'
+#' User-facing wrapper for data-adaptive MBRarefy cutpoint selection. The
+#' function calls \code{GAReg::gareg_knots()} with either the fixed-\eqn{K}
+#' objective \code{\link{fixBinRegObj}} or the varying-\eqn{K} objective
+#' \code{\link{varBinRegObj}}, then returns selected cutpoints, operational
+#' lower-bound depths, bin boundaries, assignments, and the fitted GA object.
+#'
+#' @param Lorig Numeric vector of original library sizes, one per sample.
+#' @param Lgrid Numeric increasing vector of candidate rarefaction depths.
+#' @param Y Numeric matrix of alpha-diversity values with samples in rows and
+#'   depths in columns. \code{nrow(Y)} must equal \code{length(Lorig)} and
+#'   \code{ncol(Y)} must equal \code{length(Lgrid)}.
+#' @param mode Character; \code{"fixed"} for user-specified bin count or
+#'   \code{"varying"} for data-adaptive bin count.
+#' @param K Integer number of bins used when \code{mode = "fixed"}. The number
+#'   of interior cutpoints is \code{K - 1}. Defaults to six bins.
+#' @param Z Optional covariate matrix adjusted in the residual library-size
+#'   objective.
+#' @param weight Bin weighting scheme passed to the objective:
+#'   \code{"count"}, \code{"equal"}, or \code{"width"}.
+#' @param min_subjects Minimum usable subjects per bin in the objective.
+#' @param minDist Optional minimum spacing, in grid index units, between
+#'   selected interior cutpoints.
+#' @param use_logL Logical; if \code{TRUE}, the objective uses
+#'   \eqn{\log_{10}(Lorig)} as the library-size regressor.
+#' @param min_knots Minimum number of interior cutpoints for
+#'   \code{mode = "varying"}. The final simulation setting uses
+#'   \code{min_knots = 1L}.
+#' @param gaMethod GA method passed to \code{GAReg::gareg_knots()}.
+#' @param cptgactrl Optional control object from \code{GAReg::cptgaControl()}.
+#'   If \code{NULL}, a higher-budget default is used.
+#' @param seed Optional random seed for reproducibility.
+#' @param ... Additional arguments passed to \code{GAReg::gareg_knots()}.
+#'
+#' @return A list with selected cutpoints, bin boundaries, assignments,
+#'   operational lower-bound depths, the fitted GA object, and settings.
+#'
+#' @examples
+#' \dontrun{
+#' fit_bins <- selectMBRarefyBins(
+#'   Lorig = dataPheno$totalReads,
+#'   Lgrid = depths,
+#'   Y = as.matrix(USC),
+#'   mode = "fixed",
+#'   K = 6L,
+#'   min_subjects = 20L
+#' )
+#'
+#' y_anchor <- extractMBRarefyAlpha(
+#'   Y = as.matrix(USC),
+#'   Lorig = dataPheno$totalReads,
+#'   Lgrid = depths,
+#'   BinCuts = fit_bins$BinCuts,
+#'   depths_op = fit_bins$depths_op
+#' )
+#' }
+#' @export
+selectMBRarefyBins <- function(
+    Lorig,
+    Lgrid,
+    Y,
+    mode = c("fixed", "varying"),
+    K = 6L,
+    Z = NULL,
+    weight = c("count", "equal", "width"),
+    min_subjects = 20L,
+    minDist = 1L,
+    use_logL = TRUE,
+    min_knots = 1L,
+    gaMethod = "cptga",
+    cptgactrl = NULL,
+    seed = NULL,
+    ...
+) {
+  mode <- match.arg(mode)
+  weight <- match.arg(weight)
+  Lorig <- as.numeric(Lorig)
+  Lgrid <- as.numeric(Lgrid)
+  Y <- as.matrix(Y)
+
+  if (length(Lorig) != nrow(Y)) stop("length(Lorig) must equal nrow(Y).", call. = FALSE)
+  if (length(Lgrid) != ncol(Y)) stop("length(Lgrid) must equal ncol(Y).", call. = FALSE)
+  if (length(Lgrid) < 3L) stop("Lgrid must contain at least three depths.", call. = FALSE)
+  if (any(!is.finite(Lgrid)) || any(diff(Lgrid) <= 0)) {
+    stop("Lgrid must be finite and strictly increasing.", call. = FALSE)
+  }
+  if (any(!is.finite(Lorig))) stop("Lorig must contain finite values.", call. = FALSE)
+
+  if (is.null(cptgactrl)) {
+    cptgactrl <- GAReg::cptgaControl(
+      popSize = 400,
+      maxgen = 100000,
+      pchangepoint = 0.3
+    )
+  }
+
+  if (!is.null(seed)) set.seed(seed)
+
+  common_args <- list(
+    y = rep(0, length(Lgrid)),
+    x = Lgrid,
+    gaMethod = gaMethod,
+    cptgactrl = cptgactrl,
+    minDist = minDist,
+    Y = Y,
+    Lorig = Lorig,
+    Z = Z,
+    weight = weight,
+    min_subjects = min_subjects,
+    use_logL = use_logL,
+    ...
+  )
+
+  if (mode == "fixed") {
+    K <- as.integer(K)
+    if (length(K) != 1L || !is.finite(K) || K < 2L) {
+      stop("K must be a single integer at least 2 for fixed mode.", call. = FALSE)
+    }
+    if ((K - 1L) > (length(Lgrid) - 2L)) {
+      stop("K is too large for the number of available interior grid points.", call. = FALSE)
+    }
+    fit <- do.call(
+      GAReg::gareg_knots,
+      c(common_args, list(ObjFunc = fixBinRegObj, fixedknots = K - 1L))
+    )
+  } else {
+    fit <- do.call(
+      GAReg::gareg_knots,
+      c(common_args, list(ObjFunc = varBinRegObj, min_knots = min_knots))
+    )
+  }
+
+  idx <- .mbrarefy_selected_indices(fit = fit, Lgrid = Lgrid)
+  bin_def <- .mbrarefy_bin_definition(Lgrid, idx)
+  bin_id <- .mbrarefy_bin_id(Lorig, bin_def$BinCuts)
+
+  list(
+    fit = fit,
+    mode = mode,
+    best_idx = idx,
+    best_knots = Lgrid[idx],
+    depths_op = bin_def$depths_op,
+    BinCuts = bin_def$BinCuts,
+    bin_id = bin_id,
+    K = length(bin_def$depths_op),
+    settings = list(
+      weight = weight,
+      min_subjects = min_subjects,
+      minDist = minDist,
+      use_logL = use_logL,
+      min_knots = if (mode == "varying") min_knots else NA_integer_
+    )
+  )
+}
+
+#' Extract Bin-Anchored Alpha Diversity Values
+#'
+#' Extract the alpha-diversity value used for MBRarefy downstream inference:
+#' each sample is assigned to a library-size bin and evaluated at that bin's
+#' lower-bound rarefaction depth.
+#'
+#' @param Y Numeric sample-by-depth alpha-diversity matrix.
+#' @param Lorig Numeric vector of original library sizes.
+#' @param Lgrid Numeric vector of candidate rarefaction depths.
+#' @param fit Optional fitted result returned by \code{selectMBRarefyBins()} or
+#'   \code{GAReg::gareg_knots()}.
+#' @param best_knots Optional numeric cutpoints used when \code{fit} is absent.
+#' @param BinCuts Optional bin boundaries, usually from
+#'   \code{selectMBRarefyBins()}.
+#' @param depths_op Optional operational lower-bound depths, usually from
+#'   \code{selectMBRarefyBins()}.
+#' @param return Character; \code{"vector"} returns only anchored alpha values,
+#'   while \code{"data.frame"} also returns bin IDs and rarefaction depths.
+#'
+#' @return A numeric vector or a data frame, depending on \code{return}.
+#' @export
+extractMBRarefyAlpha <- function(
+    Y,
+    Lorig,
+    Lgrid,
+    fit = NULL,
+    best_knots = NULL,
+    BinCuts = NULL,
+    depths_op = NULL,
+    return = c("vector", "data.frame")
+) {
+  return <- match.arg(return)
+  Y <- as.matrix(Y)
+  Lorig <- as.numeric(Lorig)
+  Lgrid <- as.numeric(Lgrid)
+
+  if (length(Lorig) != nrow(Y)) stop("length(Lorig) must equal nrow(Y).", call. = FALSE)
+  if (length(Lgrid) != ncol(Y)) stop("length(Lgrid) must equal ncol(Y).", call. = FALSE)
+  if (any(!is.finite(Lgrid)) || any(diff(Lgrid) <= 0)) {
+    stop("Lgrid must be finite and strictly increasing.", call. = FALSE)
+  }
+
+  if (is.null(BinCuts) || is.null(depths_op)) {
+    if (is.list(fit) && !is.null(fit$BinCuts) && !is.null(fit$depths_op)) {
+      BinCuts <- fit$BinCuts
+      depths_op <- fit$depths_op
+    } else {
+      idx <- .mbrarefy_selected_indices(fit = fit, best_knots = best_knots, Lgrid = Lgrid)
+      bin_def <- .mbrarefy_bin_definition(Lgrid, idx)
+      BinCuts <- bin_def$BinCuts
+      depths_op <- bin_def$depths_op
+    }
+  }
+
+  bin_id <- .mbrarefy_bin_id(Lorig, BinCuts)
+  rarefy_depth <- depths_op[bin_id]
+  col_id <- match(rarefy_depth, Lgrid)
+
+  y_anchor <- rep(NA_real_, length(Lorig))
+  ok <- !is.na(bin_id) & !is.na(col_id)
+  y_anchor[ok] <- Y[cbind(which(ok), col_id[ok])]
+
+  if (return == "vector") return(y_anchor)
+
+  data.frame(
+    alpha = y_anchor,
+    bin_id = bin_id,
+    rarefy_depth = rarefy_depth,
+    library_size = Lorig
+  )
 }

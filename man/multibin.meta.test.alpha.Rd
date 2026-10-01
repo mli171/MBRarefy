@@ -21,7 +21,9 @@ samples and columns representing bins.}
 \item{totalReads}{A numeric vector of library sizes (e.g., total read counts per sample).}
 
 \item{BinCuts}{A numeric vector specifying the cut points to bin \code{totalReads}.
-Must have length \code{nBins + 1}.}
+Must have length \code{nBins + 1}. Samples are assigned to half-open bins
+\eqn{[c_b, c_{b+1})}, with the last bin including the final boundary when
+it is finite. Using \code{Inf} as the last boundary is supported.}
 
 \item{test.func}{A function or character name of a function used to test the association
 within each bin. The function should accept arguments \code{X} (covariate) and \code{Y} (response).
@@ -45,6 +47,8 @@ sample-size weighting (SSW), and inverse-variance weighting (IVW).
 }
 \details{
 Each sample is assigned to a bin based on its library size using \code{BinCuts}.
+The binning convention is left-closed/right-open, matching the bin-anchored
+MBRarefy extraction and plotting helpers.
 Within each bin, a statistical test is applied to evaluate the association between alpha
 diversity and the covariate. The results are then aggregated using three meta-analytic strategies:
 \itemize{

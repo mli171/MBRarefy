@@ -13,10 +13,11 @@
 #' user-specified rarefaction depth, which is useful for illustrating
 #' conventional single-depth rarefying.
 #'
-#' Selected MBRarefy cutpoints can be supplied either through a fitted
+#' Selected MBRarefy cutpoints can be supplied through the list returned by
+#' \code{\link{selectMBRarefyBins}}, through a fitted
 #' \code{GAReg::gareg_knots()} object via \code{fit}, or directly through
-#' \code{best_knots}. When \code{fit} is supplied, the function extracts
-#' the selected knot indices from \code{fit@bestsol} and maps them to the
+#' \code{best_knots}. When a GA fit is supplied, the function extracts the
+#' selected knot indices from \code{fit@bestsol} and maps them to the
 #' corresponding depths in \code{Lgrid}.
 #'
 #' @param Lorig Numeric vector of original sample library sizes. Its length
@@ -28,9 +29,10 @@
 #'   \code{Y[i, j]} is the alpha diversity for sample \code{i} rarefied to
 #'   depth \code{Lgrid[j]}. Missing values are allowed when a sample cannot
 #'   be rarefied to a requested depth.
-#' @param fit Optional fitted \code{GAReg::gareg_knots()} object containing
-#'   selected cutpoint indices in \code{fit@bestsol}. Required when
-#'   \code{best_knots} is not supplied and \code{y_mode = "bin_lower_bound"}.
+#' @param fit Optional fitted result returned by \code{\link{selectMBRarefyBins}}
+#'   or a \code{GAReg::gareg_knots()} object containing selected cutpoint indices
+#'   in \code{fit@bestsol}. Required when \code{best_knots} is not supplied and
+#'   \code{y_mode = "bin_lower_bound"}.
 #' @param best_knots Optional numeric vector of selected library-size
 #'   cutpoints. If supplied, these are used directly instead of extracting
 #'   cutpoints from \code{fit}.
@@ -111,7 +113,7 @@
 #'   Y = as.matrix(USC),
 #'   fit = var_fit,
 #'   y_mode = "bin_lower_bound",
-#'   title_prefix = "Select cutpoints to reduce depth-diversity dependence (Vary-K)",
+#'   title_prefix = "Select cutpoints to reduce depth-diversity dependence (Varying-K)",
 #'   y_label = "Observed richness at bin lower bound",
 #'   show_missing_as_rug = FALSE
 #' )
@@ -165,20 +167,19 @@ plotMBRarefy <- function(
   stopifnot(all(is.finite(Lorig)))
 
   ## Extract selected cutpoints if available
-  if (is.null(best_knots) && !is.null(fit)) {
-    best_idx <- as.integer(fit@bestsol)
-    best_idx <- sort(unique(best_idx[
-      is.finite(best_idx) &
-        best_idx >= 2L &
-        best_idx <= (length(Lgrid) - 1L)
-    ]))
+  if (is.list(fit) && !is.null(fit$best_knots)) {
+    best_knots <- fit$best_knots
+  } else if (is.null(best_knots) && !is.null(fit)) {
+    best_idx <- .mbrarefy_selected_indices(fit = fit, Lgrid = Lgrid)
     best_knots <- Lgrid[best_idx]
   }
 
   if (!is.null(best_knots)) {
-    best_knots <- sort(unique(as.numeric(best_knots)))
-    depths_op <- sort(unique(c(min(Lgrid), best_knots)))
-    BinCuts <- c(depths_op, Inf)
+    best_idx <- .mbrarefy_selected_indices(best_knots = best_knots, Lgrid = Lgrid)
+    bin_def <- .mbrarefy_bin_definition(Lgrid, best_idx)
+    best_knots <- Lgrid[best_idx]
+    depths_op <- bin_def$depths_op
+    BinCuts <- bin_def$BinCuts
   } else {
     depths_op <- min(Lgrid)
     BinCuts <- NULL
@@ -194,7 +195,7 @@ plotMBRarefy <- function(
     L_use <- Lorig[keep]
     Y_use <- Y[keep, , drop = FALSE]
 
-    bin_id <- cut(L_use, breaks = BinCuts, right = FALSE, include.lowest = TRUE, labels = FALSE)
+    bin_id <- .mbrarefy_bin_id(L_use, BinCuts)
     bin_lower_depth <- depths_op[bin_id]
     bins <- cut(L_use, breaks = BinCuts, right = FALSE, include.lowest = TRUE)
 
@@ -319,5 +320,3 @@ plotMBRarefy <- function(
     BinCuts = BinCuts
   ))
 }
-
-

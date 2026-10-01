@@ -35,9 +35,10 @@ with samples in rows and rarefaction depths in columns. Entry
 depth \code{Lgrid[j]}. Missing values are allowed when a sample cannot
 be rarefied to a requested depth.}
 
-\item{fit}{Optional fitted \code{GAReg::gareg_knots()} object containing
-selected cutpoint indices in \code{fit@bestsol}. Required when
-\code{best_knots} is not supplied and \code{y_mode = "bin_lower_bound"}.}
+\item{fit}{Optional fitted result returned by \code{\link{selectMBRarefyBins}}
+or a \code{GAReg::gareg_knots()} object containing selected cutpoint indices
+in \code{fit@bestsol}. Required when \code{best_knots} is not supplied and
+\code{y_mode = "bin_lower_bound"}.}
 
 \item{best_knots}{Optional numeric vector of selected library-size
 cutpoints. If supplied, these are used directly instead of extracting
@@ -109,10 +110,11 @@ all samples are plotted using alpha diversity evaluated at a single
 user-specified rarefaction depth, which is useful for illustrating
 conventional single-depth rarefying.
 
-Selected MBRarefy cutpoints can be supplied either through a fitted
+Selected MBRarefy cutpoints can be supplied through the list returned by
+\code{\link{selectMBRarefyBins}}, through a fitted
 \code{GAReg::gareg_knots()} object via \code{fit}, or directly through
-\code{best_knots}. When \code{fit} is supplied, the function extracts
-the selected knot indices from \code{fit@bestsol} and maps them to the
+\code{best_knots}. When a GA fit is supplied, the function extracts the
+selected knot indices from \code{fit@bestsol} and maps them to the
 corresponding depths in \code{Lgrid}.
 
 
@@ -151,7 +153,7 @@ res_var <- plotMBRarefy(
   Y = as.matrix(USC),
   fit = var_fit,
   y_mode = "bin_lower_bound",
-  title_prefix = "Select cutpoints to reduce depth-diversity dependence (Vary-K)",
+  title_prefix = "Select cutpoints to reduce depth-diversity dependence (Varying-K)",
   y_label = "Observed richness at bin lower bound",
   show_missing_as_rug = FALSE
 )

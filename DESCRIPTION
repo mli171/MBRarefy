@@ -11,11 +11,13 @@ Authors@R: c(
     )
   )
 Description: This package implements multibin rarefaction for alpha-diversity analysis under heterogeneous library sizes. The package provides data-adaptive selection of library-size bin thresholds, within-bin rarefaction to bin-specific depths, and estimation and association testing of alpha-diversity metrics with optional covariate adjustment. Tools are included for reproducible workflows, diagnostics, and summary reporting for sequencing-based community profiling data (e.g., microbiome, metagenomics, TCR immune repertoire).
+Depends:
+    GAReg,
+    changepointGA
 Imports:
     foreach,
     doParallel,
     parallel,
-    GAReg,
     stats,
     utils,
     ggplot2

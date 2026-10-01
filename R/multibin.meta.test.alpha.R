@@ -11,7 +11,9 @@
 #' @param xs A numeric vector of covariate values (e.g., binary or continuous) of the same length as the number of samples.
 #' @param totalReads A numeric vector of library sizes (e.g., total read counts per sample).
 #' @param BinCuts A numeric vector specifying the cut points to bin \code{totalReads}.
-#'   Must have length \code{nBins + 1}.
+#'   Must have length \code{nBins + 1}. Samples are assigned to half-open bins
+#'   \eqn{[c_b, c_{b+1})}, with the last bin including the final boundary when
+#'   it is finite. Using \code{Inf} as the last boundary is supported.
 #' @param test.func A function or character name of a function used to test the association
 #'   within each bin. The function should accept arguments \code{X} (covariate) and \code{Y} (response).
 #'   Defaults to \code{"test.func.bin"}.
@@ -25,6 +27,8 @@
 #' }
 #'
 #' @details Each sample is assigned to a bin based on its library size using \code{BinCuts}.
+#' The binning convention is left-closed/right-open, matching the bin-anchored
+#' MBRarefy extraction and plotting helpers.
 #' Within each bin, a statistical test is applied to evaluate the association between alpha
 #' diversity and the covariate. The results are then aggregated using three meta-analytic strategies:
 #' \itemize{
@@ -66,7 +70,9 @@ multibin.meta.test.alpha = function(y.alpha.mat,
     stop("Sample library size out of provided Bin range.")
   }
 
-  binFactor = cut(totalReads, BinCuts)
+  BinCutsUse = BinCuts
+  BinCutsUse[length(BinCutsUse)] = Inf
+  binFactor = cut(totalReads, BinCutsUse, right = FALSE, include.lowest = TRUE)
 
   if (is.function(test.func)) {
     test.bin <- test.func
@@ -80,8 +86,7 @@ multibin.meta.test.alpha = function(y.alpha.mat,
   bClc = vClc = BinSizes = rep(NA, nBins)
   for(i in 1:nBins){
     tempIdxBin = which(!is.na(binFactor) &
-                         totalReads >= BinCuts[i] &
-                         totalReads <= BinCuts[i+1])
+                         as.integer(binFactor) == i)
     BinSizes[i] = length(tempIdxBin)
     tmp.bin.test = test.bin(X=xs[tempIdxBin], Y=y.alpha.mat[tempIdxBin,i])
     bClc[i] = as.numeric(tmp.bin.test[1])
