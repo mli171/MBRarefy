@@ -1,7 +1,7 @@
 # MBRarefy
 `MBRarefy` provides an R workflow for alpha diversity association analysis under heterogeneous library sizes in high-throughput count-profile data, including immune-repertoire and microbiome sequencing datasets. The package implements the multi-bin rarefying framework, in which samples are partitioned into library-size bins, rarefied within bins to bin-specific depths, and analyzed by bin-wise association testing followed by cross-bin meta-analysis.
 
-A key feature of `MBRarefy` is automated, data-adaptive library-size cutpoint selection using GA-based ordered knot placement. The package supports fixed-K and varying-K bin selection, repeated rarefying for Monte Carlo stabilization, residual library-size diagnostics, and standardized outputs for downstream association analysis.
+A key feature of `MBRarefy` is automated, data-adaptive library-size cutpoint selection using GA-based ordered knot placement. The package supports fixed-K bin selection as the primary analysis, varying-K bin selection as a sensitivity analysis, repeated rarefying for Monte Carlo stabilization, residual library-size diagnostics, and standardized outputs for downstream association analysis.
 
 ## Installation
 You can install the latest version of MBRarefy from Github:
@@ -27,7 +27,7 @@ A typical `MBRarefy` analysis consists of the following steps:
 1. Prepare per-sample feature-count files and aligned metadata.
 2. Compute repeated rarefaction profiles over a user-defined depth grid using `multibin.rarefy.diversity()`.
 3. Aggregate replicate-resolved alpha-diversity results into sample-by-depth matrices using `get_alpha_metric_matrix()`.
-4. Select library-size cutpoints using fixed-K or varying-K GA-based optimization.
+4. Select library-size cutpoints using `selectMBRarefyBins()`, with fixed-K as the primary analysis and varying-K as a sensitivity analysis.
 5. Extract bin-anchored alpha diversity values.
 6. Perform bin-wise association testing and cross-bin meta-analysis using `multibin.meta.test.alpha()`.
 7. Run a residual library-size diagnostic before interpreting biological or ecological associations.
@@ -38,6 +38,8 @@ A typical `MBRarefy` analysis consists of the following steps:
 - `multibin.rarefy.diversity()`: Runs repeated rarefying over a user-specified depth grid and computes alpha diversity metrics for each eligible sample.
 - `rarefy.alpha()`: Computes alpha diversity metrics after rarefying for a single sample or count profile.
 - `get_alpha_metric_matrix()`: Aggregates replicate-resolved rarefying results into sample-by-depth alpha diversity matrices.
+- `selectMBRarefyBins()`: Selects library-size cutpoints and returns bin boundaries, assignments, and the fitted GA object.
+- `extractMBRarefyAlpha()`: Extracts the bin-anchored alpha diversity values used for downstream multibin inference.
 - `fixBinRegObj()`: Objective function for fixed-K GA-based library-size cutpoint selection.
 - `varBinRegObj()`: Objective function for varying-K GA-based library-size cutpoint selection.
 - `multibin.meta.test.alpha()`: Performs bin-wise alpha diversity association tests and combines bin-specific results by cross-bin meta-analysis.
@@ -72,6 +74,27 @@ USC <- alpha.mats$unique_seq_alpha
 head(USC[, 1:3])
 ```
 
+Select fixed-K bins for the main analysis:
+
+```{r}
+fit_bins <- selectMBRarefyBins(
+  Lorig = CMV1$dataPheno[rownames(USC), "totalReads"],
+  Lgrid = CMV1$depths,
+  Y = as.matrix(USC),
+  mode = "fixed",
+  K = 6L,
+  min_subjects = 20L,
+  seed = 123
+)
+
+y_anchor <- extractMBRarefyAlpha(
+  Y = as.matrix(USC),
+  Lorig = CMV1$dataPheno[rownames(USC), "totalReads"],
+  Lgrid = CMV1$depths,
+  fit = fit_bins
+)
+```
+
 Calculating alpha diversity at different rarefying levels, the `alpha.mats` object is a nested list with the following structure
 
 ```
@@ -97,7 +120,7 @@ The package vignette demonstrates the complete workflow using two application ex
 - a TCR immune-repertoire dataset with known CMV serostatus;
 - a wild baboon gut microbiome dataset.
 
-The vignette illustrates repeated rarefying, fixed-\(K\) and varying-\(K\) cutpoint selection, residual library-size diagnostics, and cross-bin meta-analysis.
+The vignette illustrates repeated rarefying, fixed-\(K\) cutpoint selection, varying-\(K\) sensitivity checks, residual library-size diagnostics, and cross-bin meta-analysis.
 
 ```{r}
 browseVignettes("MBRarefy")
@@ -109,4 +132,3 @@ browseVignettes("MBRarefy")
 [1] Li, M. (2026). MBRarefy: data-adaptive multi-bin rarefying for alpha diversity association analysis.
 
 [2] Li, Mo, Xing Hua, Shuai Li, Michael C. Wu, and Ni Zhao. "A multi-bin rarefying method for evaluating alpha diversities in TCR sequencing data." Bioinformatics 40, no. 7 (2024): btae431. https://doi.org/10.1093/bioinformatics/btae431.
-
