@@ -39,10 +39,10 @@ This package is especially useful when:
 - doParallel
 - parallel
 - foreach
-- doParallel
 - utils
 - ggplot2
 - GAReg
+- changepointGA
 
 These packages are all available on CRAN.
 
@@ -88,7 +88,7 @@ library(MBRarefy)
 ## Key Features
 
 - **Multi-bin rarefying:** Stratifies samples by library size and rarefies samples within each bin to a bin-specific depth.
-- **Data-adaptive cutpoint selection:** Selects library-size bin cutpoints by minimizing residual within-bin association between alpha diversity and original library size.
+- **Data-adaptive cutpoint selection:** Selects library-size cutpoints by balancing residual within-bin library-size dependence against sample fragmentation.
 - **Fixed-\(K\) and varying-\(K\) modes:** Supports fixed-\(K\) selection as the primary analysis and varying-\(K\) selection as a sensitivity analysis.
 - **Alpha diversity metrics:** Supports observed richness, Shannon entropy, Simpson/Gini-Simpson index, Chao1, bias-corrected Chao1, and Pielou evenness.
 - **Repeated rarefying:** Supports repeated subsampling to stabilize alpha-diversity estimates across rarefying replicates.
@@ -109,12 +109,11 @@ library(MBRarefy)
 - `varBinRegObj()`: Objective function for varying-\(K\) GA-based library-size cutpoint selection.
 - `multibin.meta.test.alpha()`: Performs bin-wise alpha diversity association tests and combines bin-specific results by cross-bin meta-analysis.
 
-Cutpoint optimization is carried out using `selectMBRarefyBins()`, which calls `GAReg::gareg_knots()` with `fixBinRegObj()` or `varBinRegObj()` supplied as the objective function.
-
+Cutpoint optimization is carried out using `selectMBRarefyBins()`. Fixed-\(K\) optimization uses `GAReg::gareg_knots()` with `fixBinRegObj()`, whereas varying-\(K\) optimization uses `changepointGA::cptgaisl()` with `varBinRegObj()`.
 
 # Multi-bin Workflow for TCR and Microbiome Alpha Diversity Association Analysis
 
-The package vignettes illustrate the full \texttt{MBRarefy} workflow using two real datasets from distinct application domains. First, we use the TCR immunosequencing dataset from Emerson et al. (2017), which profiled healthy donors with known Cytomegalovirus (CMV) serostatus, to demonstrate alpha-diversity association testing in immune repertoire data. Second, we include a microbiome example using the longitudinal wild baboon gut 16S rRNA dataset available via \texttt{microbiomeDataSets::baboongut()}, which contains 16,234 microbiome profiles from 585 baboons collected over 14 years, together with rich sample metadata. These two examples highlight how the same grid-based profiling, GA-based cutpoint selection, and downstream multibin inference can be applied across immune repertoire and microbiome/count-based profiling studies under heterogeneous library sizes.
+The package vignettes illustrate the full `MBRarefy` workflow using two real datasets from distinct application domains. First, we use the TCR immunosequencing dataset from Emerson et al. (2017), which profiled healthy donors with known Cytomegalovirus (CMV) serostatus, to demonstrate alpha-diversity association testing in immune repertoire data. Second, we include a microbiome example using the longitudinal wild baboon gut 16S rRNA dataset available via `microbiomeDataSets::baboongut()`, which contains 16,234 microbiome profiles from 585 baboons collected over 14 years, together with rich sample metadata. These two examples highlight how the same grid-based profiling, GA-based cutpoint selection, and downstream multibin inference can be applied across immune repertoire and microbiome/count-based profiling studies under heterogeneous library sizes.
 
 The main steps are:
 
@@ -189,11 +188,11 @@ The example nested list structure of the output `raw.multibin.alpha.res` can be 
 
 3. Data-adaptive library-size binning via optimal thresholds selection.
 
-A key step in multi-bin rarefying is defining library size cutpoints that partition samples into bins for within-bin rarefying and inference. `MBRarefy` provides an automated, data-adaptive procedure to select these cutpoints from the observed library-size distribution, reducing ad hoc choices based on visual inspection or fixed rules.
+A key step in multi-bin rarefying is defining library-size cutpoints that partition samples into bins for within-bin rarefying and inference. `MBRarefy` provides an automated, data-adaptive procedure for selecting these cutpoints based on the observed relationship between library size and alpha diversity, reducing reliance on ad hoc choices based on visual inspection or fixed rules.
 
-Given a user-specified rarefying depth grid (`depths` from above) and a target number of bins $K$ (or a varying-\(K\) sensitivity analysis), `selectMBRarefyBins()` searches for a common set of ordered cutpoints that yields bins with adequate sample size and stable estimation. Cutpoints are chosen to minimize residual within-bin association between rarefying-based alpha diversity and original library size evaluated at bin anchor depths, optionally adjusting for nuisance covariates (e.g., batch or sequencing run). This criterion targets bins in which alpha-diversity estimates are least confounded by library size, improving comparability across samples while retaining more information than single-depth rarefying. Details can be found in Li (2026).
+Given a candidate rarefaction-depth grid and the corresponding sample-by-depth alpha-diversity matrix, `selectMBRarefyBins()` selects library-size cutpoints by minimizing $J(\tau)=Q(\tau)+F(\tau)$, where $Q(\tau)$ is the sample-size-weighted average of bin-specific partial $R^2$ values measuring residual library-size dependence and $F(\tau)$ penalizes excessive sample fragmentation. In fixed-$K$ mode, $K$ denotes the prespecified number of interior cutpoints. In varying-$K$ mode, both the number and locations of interior cutpoints are selected subject to the same feasibility constraints. Each resulting partition contains $B=K+1$ bins.
 
-The optimization is performed using a genetic algorithm (GA) constraint-aware search routine that enforces ordered cutpoints, minimum bin size, and optional minimum spacing on the depth grid. `MBRarefy` returns the selected cutpoints, bin assignments, and diagnostics (objective values and bin-level summaries) to support reproducible reporting and sensitivity analyses.
+Optimization is performed using constraint-aware genetic algorithm search routines that enforce ordered cutpoints, a minimum bin size, and optional minimum spacing on the depth grid.
 
 Next, load the pre-processed alpha diversity data generated by the code chunk above and included with the package.
 
@@ -238,30 +237,34 @@ Overallpvalue
 
 These diagnostics indicate that overall rarefying can leave detectable residual association between observed richness and original library size. The relationship between TCR phenotype covariates and library size was examined in Li et al. (2024). The inference results by testing the association between alpha diversity and phenotypes are questionable. 
 
-Now we describe the multi-bin rarefying approach with optimal bin thresholds selection.
+Using a grid of $M=100$ rarefaction depths spanning from $10^5$ to $10^7$, we apply the data-adaptive partition-selection criterion described above. We consider two settings: fixed-$K$, where the number of interior cutpoints is prespecified, and varying-$K$, where both the number and locations of interior cutpoints are selected from the data. Fixed-$K$ optimization uses `GAReg::gareg_knots()`, whereas varying-$K$ optimization uses `changepointGA::cptgaisl()`.
 
-Using a grid of $M=100$ rarefying levels spanning from 1e5 to 1e7 from `depths` above, we form a monotone grid set for the candidate optimal bin thresholding values. Before the multibin association analysis, we choose an optimal binning of $\boldsymbol{L}_{\text{grid}}$ that minimizes residual dependence between the original library size and alpha diversity within bins (Li et al., 2026). Given a rarefying depth grid of length $M=100$ and the pre-computed alpha diversity matrix, we consider two real-world application scenarios: (i) the number of cutting thresholds is specified, or (ii) it must be estimated. For each scenario, we formulate a dedicated objective function and optimize it using the R package `GAReg` (Li et al., 2026). The proposed objective functions, `fixBinRegObj()` and `varBinRegObj()`, are designed to meet our specific needs and are included in our `MBRarefy` package.
-
-- Model 1: With user-specified number of bins (``fixed-K'');
+- Model 1: Fixed number of interior cutpoints (fixed-$K$);
 
 ```{r fixnumbbin, fig.width=10, fig.height=5}
-Lorig = dataPheno$totalReads
-Lgrid = depths
-Y     = as.matrix(USC)
+Lorig <- dataPheno$totalReads
+Lgrid <- depths
+Y <- as.matrix(USC)
 
 fix_fit <- selectMBRarefyBins(
-  Lorig        = Lorig,
-  Lgrid        = Lgrid,
-  Y            = Y,
-  mode         = "fixed",
-  K            = 6L,
-  minDist      = 1L,
-  Z            = NULL,
-  weight       = "count",
+  Lorig = Lorig,
+  Lgrid = Lgrid,
+  Y = Y,
+  mode = "fixed",
+  K = 3L,
+  Z = NULL,
   min_subjects = 20L,
-  use_logL     = TRUE,
-  seed         = 123
+  eta_F = 0.05,
+  minDist = 1L,
+  seed = 1
 )
+
+fix_fit$K
+fix_fit$B
+fix_fit$best_knots
+fix_fit$Q
+fix_fit$F
+fix_fit$objective
 
 best_knots_fix <- fix_fit$best_knots
 depths_op_fix <- fix_fit$depths_op
@@ -270,7 +273,7 @@ res_fix <- plotMBRarefy(
   Lorig = Lorig,
   Lgrid = Lgrid,
   Y = Y,
-  fit = fix_fit,
+  best_knots = fix_fit$best_knots,
   y_mode = "bin_lower_bound",
   title_prefix = "Select cutpoints to reduce depth-diversity dependence (Fixed-K)",
   y_label = "Observed richness at bin lower bound",
@@ -280,22 +283,28 @@ res_fix <- plotMBRarefy(
 res_fix$plot
 ```
 
-- Model 2: With estimated number of bins (``varying-K'');
+- Model 2: Data-adaptive number of interior cutpoints (varying-$K$)
 
 ```{r varynumbbin, fig.width=10, fig.height=7}
 var_fit <- selectMBRarefyBins(
-  Lorig        = Lorig,
-  Lgrid        = Lgrid,
-  Y            = Y,
-  mode         = "varying",
-  minDist      = 3L,
-  min_knots    = 1L,
-  Z            = NULL,
-  weight       = "count",
+  Lorig = Lorig,
+  Lgrid = Lgrid,
+  Y = Y,
+  mode = "varying",
+  Kmax = 10L,
+  Z = NULL,
   min_subjects = 20L,
-  use_logL     = TRUE,
-  seed         = 124
+  eta_F = 0.05,
+  minDist = 1L,
+  seed = 1
 )
+
+var_fit$K
+var_fit$B
+var_fit$best_knots
+var_fit$Q
+var_fit$F
+var_fit$objective
 
 best_knots_var <- var_fit$best_knots
 depths_op_var <- var_fit$depths_op
@@ -304,7 +313,7 @@ res_var <- plotMBRarefy(
   Lorig = Lorig,
   Lgrid = Lgrid,
   Y = Y,
-  fit = var_fit,
+  best_knots = var_fit$best_knots,
   y_mode = "bin_lower_bound",
   title_prefix = "Select cutpoints to reduce depth-diversity dependence (Varying-K)",
   y_label = "Observed richness at bin lower bound",
@@ -314,7 +323,7 @@ res_var <- plotMBRarefy(
 res_var$plot
 ```
 
-Next, we use detected as the optimal bin thresholds and continue the illustration of multibin rarefying algorithm. Since the detected bin threshold parameters are only interior knots, we need to add-in the minimum of sample library size ($1e5$) as the lower boundary point.
+For downstream analysis, we use the operational rarefaction depths and bin boundaries returned directly by `selectMBRarefyBins()`.
 
 ```{r}
 depths_op <- fix_fit$depths_op
@@ -324,11 +333,7 @@ BinCuts <- fix_fit$BinCuts
 
 4. Multi-bin rarefying and alpha-diversity extraction given selected optimal thresholds.
 
-After selecting the optimal cutpoints $\hat{\boldsymbol c}$, the package (i) assigns samples to bins based on their library sizes, (ii) determines a bin-specific rarefying depth $m_k$ as the minimum library size within each bin, and (iii) rarefies all samples in bin $k$ to $m_k$ (subsampling without replacement). Alpha-diversity metrics are computed on the rarefied profiles and can be summarized within bins and across bins. When $R>1$, \texttt{MBRarefy} repeats the rarefying step $R$ times per bin and reports the mean (and optional standard deviation) of the diversity estimates across replicates, improving stability when counts are sparse. The function returns the selected cutpoints, bin assignments, depths $\{m_k\}$, per-sample diversity estimates, and diagnostic summaries to support reproducible reporting and sensitivity analyses.
-
-Given the overall distribution of library sizes (library sizes) ${L_i}$, $i=1,\ldots,n$, and the selected $K-1$ optimal cutpoints, $\hat{c}_{k}$, $k=1,\ldots,K-1$, the TCR profiles are divided into $K$ bins. The choice of threshold values for binning should reflect the observed range and distribution of all $L_i$ across samples. Let:
-$$min(L_{i})=c_{0}\leq c_{1}<\ldots<c_{K-1}\leq c_{K}=max(L_{i})$$
-Each bin is defined by $[c_{k-1}, c_k)$, and within each bin, multiple rarefying replicates are performed to reduce the stochastic variation introduced by sub-sampling. The alpha diversity metrics are then computed as the average of multiple rarefying realizations per sample per bin. As mentioned in Li et al. (2024), the multi-bin rarefying method improves the robustness and interpretability of alpha diversity estimation in TCR sequencing data, especially in the presence of high variability in library size across samples.
+After selecting the interior cutpoints, samples are assigned to \(B=K+1\) library-size bins. Each bin is associated with an operational rarefaction depth given by its lower-bound depth on the candidate grid. Samples in that bin are evaluated using the alpha-diversity estimate corresponding to this common lower-bound depth. Thus, if the selected interior cutpoints are \(\tau_1<\cdots<\tau_K\), the operational depths are the minimum grid depth together with the selected cutpoint depths. The resulting bin-anchored alpha-diversity values are then used for downstream within-bin association analyses and cross-bin meta-analysis.
 
 ```{r}
 USC_mat <- USC[,paste0("RarefyTo", depths_op)]
@@ -336,7 +341,7 @@ USC_mat <- USC[,paste0("RarefyTo", depths_op)]
 
 5. Cross-bin association testing and Meta-analysis.
 
-In this step, we perform statistical testing to assess the association between alpha diversity (specifically, the number of unique TCR sequences) and external covariates such as library size, gender, and CMV disease status. The multi-bin rarefying framework allows for more robust meta-analysis by accounting for variability across library size strata. Results are aggregated using three different weighting strategies across bins: equal weighting, sample-size weighting, and inverse-variance weighting. These approaches are detailed in Li et al. (2024). The results of all three weighting methods are stored in the returned R object. In this analysis, we use the inverse-variance weighting method as an example, which is recommended by Li et al. (2024). The results indicate no significant association between library size and alpha diversity, suggesting that the multi-bin rarefying strategy has effectively mitigated the confounding influence of library size. Consequently, downstream associations between alpha diversity and other phenotype variables can be interpreted with greater validity and robustness.
+In this step, we perform statistical testing to assess the association between alpha diversity (specifically, the number of unique TCR sequences) and external covariates such as library size, gender, and CMV disease status. The multi-bin rarefying framework allows for more robust meta-analysis by accounting for variability across library size strata. Results are aggregated using three different weighting strategies across bins: equal weighting, sample-size weighting, and inverse-variance weighting. These approaches are detailed in Li et al. (2024). The results of all three weighting methods are stored in the returned R object. In this analysis, we use the inverse-variance weighting method as an example, which is recommended by Li et al. (2024). The non-significant residual library-size diagnostic indicates reduced detectable residual library-size dependence under the fitted diagnostic model. The phenotype associations can then be interpreted with reduced concern about residual depth-related artifacts.
 
 Test association between alpha diversity and original library sizes. A non-significant residual library-size diagnostic with p-value$>0.05$ suggests reduced detectable residual library-size dependence under the fitted diagnostic model.
 
@@ -401,7 +406,7 @@ res.test.CMV$Multi.bin.IVW
 
 ## Microbiome Alpha Diversity Association Analysis
 
-The microbiome dataset used in this analysis is originally the longitudinal wild baboon gut microbiome dataset available through \texttt{microbiomeDataSets::baboongut()}, derived from the GrieneisenTS study (Grieneisen et al., 2021). The dataset contains 16,234 16S rRNA gut microbiome profiles from 585 wild baboons sampled over a 14-year period. Because the full dataset contains repeated samples from the same individuals, we construct a subject-level analysis dataset by retaining one profile per baboon, selecting the sample with the largest library size for each individual. This yields 585 independent baboon samples for downstream analysis. We use observed richness as the primary alpha-diversity endpoint and evaluate its association with host and environmental covariates, including age, sex, and group size, under heterogeneous sequencing depths. This dataset provides a real-world microbiome case study for assessing whether \texttt{MBRarefy} can reduce residual library-size dependence compared with conventional single-depth rarefying while preserving biologically interpretable alpha-diversity associations.
+The microbiome dataset used in this analysis is originally the longitudinal wild baboon gut microbiome dataset available through `microbiomeDataSets::baboongut()`, derived from the GrieneisenTS study (Grieneisen et al., 2021). The dataset contains 16,234 16S rRNA gut microbiome profiles from 585 wild baboons sampled over a 14-year period. Because the full dataset contains repeated samples from the same individuals, we construct a subject-level analysis dataset by retaining one profile per baboon, selecting the sample with the largest library size for each individual. This yields 585 independent baboon samples for downstream analysis. We use observed richness as the primary alpha-diversity endpoint and evaluate its association with host and environmental covariates, including age, sex, and group size, under heterogeneous sequencing depths. This dataset provides a real-world microbiome case study for assessing whether `MBRarefy` can reduce residual library-size dependence compared with conventional single-depth rarefying while preserving biologically interpretable alpha-diversity associations.
 
 1. Prepare Input: Per-sample count tables;
 
@@ -434,7 +439,7 @@ counts_one <- counts_ord[, one_idx, drop = FALSE]
 colnames(counts_one) <- dataPheno$sample_id
 ```
 
-Because \texttt{MBRarefy} is designed to support both immune-repertoire and microbiome count data, we used a common file-based input format for the baboon gut microbiome analysis. Specifically, the microbiome count table was split into separate plain-text files, with one file corresponding to one selected sample. Each file contained two columns: \texttt{seq}, giving the feature identifier, such as an ASV or sequence label, and \texttt{count}, giving the observed count of that feature in the sample. The directory specified by \texttt{InputDataDir} therefore stores the per-sample count profiles used by \texttt{multibin.rarefy.diversity()} for grid-based repeated rarefying. This format makes the microbiome analysis consistent with the package’s TCR workflow, where each sample is also represented by a separate feature-count file.
+Because `MBRarefy` is designed to support both immune-repertoire and microbiome count data, we used a common file-based input format for the baboon gut microbiome analysis. Specifically, the microbiome count table was split into separate plain-text files, with one file corresponding to one selected sample. Each file contained two columns: `seq`, giving the feature identifier, such as an ASV or sequence label, and `count`, giving the observed count of that feature in the sample. The directory specified by `InputDataDir` therefore stores the per-sample count profiles used by `multibin.rarefy.diversity()` for grid-based repeated rarefying. This format makes the microbiome analysis consistent with the package’s TCR workflow, where each sample is also represented by a separate feature-count file.
 
 ```{r eval=FALSE, echo=TRUE}
 InputDataDir <- file.path(tempdir(), "BaboonGut_MBRarefy_Input_one_per_baboon")
@@ -607,30 +612,32 @@ We next select data-adaptive library-size cutpoints using the precomputed sample
 
 Because GA-based cutpoint selection is stochastic, we set a fixed random seed before each call to `selectMBRarefyBins()` for reproducibility. In applied analyses, users can repeat the search under several seeds and check whether the residual library-size diagnostics and downstream association results are stable.
 
-- With user-specified number of bins (``fixed-$K$'');
+- With user-specified number of interior cutpoints (``fixed-$K$'');
 
 ```{r}
 fix_fit <- selectMBRarefyBins(
-  Lorig        = Lorig,
-  Lgrid        = Lgrid,
-  Y            = Y,
-  mode         = "fixed",
-  K            = 6L,
-  minDist      = 1L,
-  Z            = NULL,
-  weight       = "count",
+  Lorig = Lorig,
+  Lgrid = Lgrid,
+  Y = Y,
+  mode = "fixed",
+  K = 3L,
+  Z = NULL,
   min_subjects = 20L,
-  use_logL     = TRUE,
-  seed         = 123
+  eta_F = 0.05,
+  minDist = 1L,
+  seed = 1
 )
+
+fix_fit$K
+fix_fit$B
+fix_fit$best_knots
+fix_fit$Q
+fix_fit$F
+fix_fit$objective
 
 best_knots_fix <- fix_fit$best_knots
 depths_op_fix <- fix_fit$depths_op
-
-best_knots_fix
-depths_op_fix
 ```
-
 
 
 
@@ -640,7 +647,7 @@ res_fix <- plotMBRarefy(
   Lorig = Lorig,
   Lgrid = Lgrid,
   Y = Y,
-  fit = fix_fit,
+  best_knots = fix_fit$best_knots,
   y_mode = "bin_lower_bound",
   title_prefix = "Select cutpoints to reduce depth-diversity dependence (Fixed-K)",
   y_label = "Observed richness at bin lower bound",
@@ -650,28 +657,31 @@ res_fix <- plotMBRarefy(
 res_fix$plot
 ```
 
-- With estimated number of bins (``varying-$K$'');
+- With estimated number of interior cutpoints (``varying-$K$'');
 
 ```{r}
 var_fit <- selectMBRarefyBins(
-  Lorig        = Lorig,
-  Lgrid        = Lgrid,
-  Y            = Y,
-  mode         = "varying",
-  minDist      = 3L,
-  min_knots    = 1L,
-  Z            = NULL,
-  weight       = "count",
+  Lorig = Lorig,
+  Lgrid = Lgrid,
+  Y = Y,
+  mode = "varying",
+  Kmax = 10L,
+  Z = NULL,
   min_subjects = 20L,
-  use_logL     = TRUE,
-  seed         = 124
+  eta_F = 0.05,
+  minDist = 1L,
+  seed = 1
 )
+
+var_fit$K
+var_fit$B
+var_fit$best_knots
+var_fit$Q
+var_fit$F
+var_fit$objective
 
 best_knots_var <- var_fit$best_knots
 depths_op_var <- var_fit$depths_op
-
-best_knots_var
-depths_op_var
 ```
 
 
@@ -682,7 +692,7 @@ res_var <- plotMBRarefy(
   Lorig = Lorig,
   Lgrid = Lgrid,
   Y = Y,
-  fit = var_fit,
+  best_knots = var_fit$best_knots,
   y_mode = "bin_lower_bound",
   title_prefix = "Select cutpoints to reduce depth-diversity dependence (Varying-K)",
   y_label = "Observed richness at bin lower bound",
